@@ -65,12 +65,14 @@
   .map-card.active { border-color:#4f7ca8; box-shadow:0 0 0 2px rgba(35,91,143,.09); background:#f7fbff; }
   .map-card small { display:block; color:var(--muted); font-weight:500; margin-top:4px; }
   .section-card { background:#f8fafc; border:1px solid #e3e8ee; border-radius:12px; padding:14px; margin-top:14px; }
-  .spot-edit-row { display:grid; grid-template-columns:110px 120px minmax(220px,1fr) auto; gap:9px; align-items:end; padding:8px 0; border-bottom:1px solid #e6eaee; }
+  .spot-edit-row { display:grid; grid-template-columns:100px minmax(190px,1fr) 90px minmax(220px,1fr) auto; gap:9px; align-items:end; padding:8px 0; border-bottom:1px solid #e6eaee; }
   .spot-edit-row:last-child { border-bottom:0; }
-  .sequence-toolbar { display:grid; grid-template-columns:minmax(180px,260px) minmax(140px,180px) 1fr; gap:10px; align-items:end; }
+  .sequence-toolbar { display:grid; grid-template-columns:minmax(170px,230px) minmax(130px,170px) minmax(150px,190px) 1fr; gap:10px; align-items:end; }
   .sequence-list { margin-top:12px; display:flex; flex-direction:column; gap:8px; }
   .sequence-row { display:grid; grid-template-columns:minmax(125px,160px) 110px minmax(160px,260px); gap:10px; align-items:center; padding:9px 10px; border:1px solid #e3e8ee; border-radius:10px; background:#fff; }
   .sequence-row strong { font-size:14px; } .muted { color:var(--muted); font-size:12px; }
+  tr.extra-media td { background:#fffaf0; }
+  .source-note { font-size:11px; color:var(--muted); margin-top:3px; }
   .toggle-line { display:flex; align-items:center; gap:8px; min-height:44px; } .toggle-line input { width:20px; height:20px; }
   .warning-list { margin:8px 0 0; padding-left:18px; color:var(--warn); font-size:13px; }
   .map-summary { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
@@ -182,8 +184,9 @@
             <div class="form-grid">
               <div><label for="mapCargo">Cargo</label><select id="mapCargo"><option>Presidente</option><option>Governador</option><option>Senador</option><option>Deputado Federal</option><option>Deputado Distrital</option></select></div>
               <div><label for="mapParty">Partido / Federação / Coligação</label><select id="mapParty"></select></div>
-              <div><label>Candidato(s)</label><div id="mapCandidateInfo" class="candidate" style="min-height:44px;display:flex;align-items:center;padding:9px 11px;border:1px solid #d8e0e8;border-radius:9px;background:#f8fafc">—</div></div>
+              <div><label for="mapCandidateName">Candidato / identificação</label><input id="mapCandidateName" type="text" placeholder="Ex.: MICHELLE BOLSONARO"></div>
               <div><label for="mapNumber">Número do mapa</label><input id="mapNumber" type="text" placeholder="Ex.: 001-2026"></div>
+              <div><label for="mapSourceFile">Arquivo fonte</label><input id="mapSourceFile" type="text" placeholder="Ex.: mapa_28_a_31.pdf"></div>
               <div><label for="mapTitle">Título / identificação</label><input id="mapTitle" type="text" placeholder="Ex.: Agosto - mapa 28 a 31"></div>
               <div><label for="mapStart">Data inicial</label><input id="mapStart" type="date"></div>
               <div><label for="mapEnd">Data final</label><input id="mapEnd" type="date"></div>
@@ -195,17 +198,18 @@
 
           <div class="section-card" id="spotsSection">
             <h3>Materiais / spots</h3>
-            <p class="help">Cadastre os códigos exatamente como aparecem no mapa (L1, L2, L3, Spot A etc.). O nome do arquivo de áudio é opcional.</p>
+            <p class="help">Cadastre o código e o título exatamente como aparecem no mapa (L1, L2, L3, Spot A etc.). O nome do arquivo de áudio é opcional.</p>
             <div id="spotEditor"></div>
             <div class="actions"><button type="button" class="media-action" id="addSpotButton">+ Adicionar spot</button><button type="button" class="success media-action" id="saveSpotsButton">Salvar materiais</button></div>
           </div>
 
           <div class="section-card" id="sequenceSection">
             <h3>Ordem das inserções</h3>
-            <p class="help">Escolha a data e o bloco. O site encontra automaticamente quantas vezes a campanha aparece na programação oficial e mostra a sequência oficial correspondente. Você só escolhe o spot da 1ª, 2ª, 3ª inserção etc.</p>
+            <p class="help">Escolha a data e o bloco e informe quantas inserções pertencem a <strong>este mapa/candidato</strong>. A ordem interna do mapa é preservada. Quando dois candidatos compartilham a mesma coligação/cargo (como no Senado), o site combina os mapas automaticamente sem alterar a ordem de cada um.</p>
             <div class="sequence-toolbar">
               <div><label for="sequenceDate">Data</label><input id="sequenceDate" type="date"></div>
               <div><label for="sequenceBlock">Bloco</label><select id="sequenceBlock"><option value="1">Bloco 1</option><option value="2">Bloco 2</option><option value="3">Bloco 3</option></select></div>
+              <div><label for="sequenceCount">Qtd. neste mapa</label><input id="sequenceCount" type="number" min="0" max="50" value="0"></div>
               <div class="muted" id="sequenceSummary"></div>
             </div>
             <div id="sequenceWarning" class="message" role="status"></div>
@@ -249,6 +253,7 @@ const CHECK_TABLE = 'programacao_checks';
 const MAP_TABLE = 'media_maps';
 const SPOT_TABLE = 'media_map_spots';
 const SEQUENCE_TABLE = 'media_map_sequence';
+const MEDIA_CHECK_TABLE = 'media_sequence_checks';
 const BATCH_SIZE = 200;
 
 const $ = (id) => document.getElementById(id);
@@ -258,8 +263,8 @@ const setupForm=$('setupForm'), loginForm=$('loginForm'), setupMessage=$('setupM
 const liveDot=$('liveDot'), liveStatus=$('liveStatus'), dateFilter=$('dateFilter'), viewFilter=$('viewFilter'), blockFilter=$('blockFilter'), cargoFilter=$('cargoFilter'), statusFilter=$('statusFilter'), searchFilter=$('searchFilter');
 const tbody=$('tbody'), empty=$('empty'), scheduleBody=$('scheduleBody'), scheduleEmpty=$('scheduleEmpty'), schedulePanel=$('schedulePanel'), scheduleSummaryPanel=$('scheduleSummaryPanel'), tablePanel=$('tablePanel'), scheduleInfo=$('scheduleInfo'), visibleCount=$('visibleCount'), doneVisible=$('doneVisible'), doneAll=$('doneAll'), percentAll=$('percentAll'), progressBar=$('progressBar'), operationNote=$('operationNote');
 
-let client=null, currentUser=null, channel=null, checked=new Set(), checkMeta=new Map(), visibleRows=[], busy=false;
-let mediaMaps=[], mediaSpots=[], mediaSequences=[], spotAssignments=new Map(), mediaMismatches=[];
+let client=null, currentUser=null, channel=null, checked=new Set(), checkMeta=new Map(), checkedMedia=new Set(), mediaCheckMeta=new Map(), visibleRows=[], busy=false;
+let mediaMaps=[], mediaSpots=[], mediaSequences=[], spotAssignments=new Map(), mediaMismatches=[], operationalRows=[];
 let selectedMapId=null, mediaReloadTimer=null, currentView='programacao';
 
 const programIndex = new Map();
@@ -269,6 +274,7 @@ for (const r of DATA) {
   programIndex.get(key).push(r);
 }
 for (const rows of programIndex.values()) rows.sort((a,b)=>Number(a.seq)-Number(b.seq));
+for (const r of DATA) { r.rowKey=`o${r.id}`; r.checkType='official'; r.checkId=r.id; }
 
 
 const CARGO_ORDER = ['Presidente','Governador','Senador','Deputado Federal','Deputado Distrital'];
@@ -307,17 +313,18 @@ function cargoTieRank(cargo,slotIndex){
 }
 function buildScheduleAssignments(){
   scheduleAssignments.clear();scheduleSlotTotals.clear();
-  const dates=[...new Set(DATA.map(r=>r.date))];
+  const source=operationalRows.length?operationalRows:DATA;
+  const dates=[...new Set(source.map(r=>r.date))];
   for(const date of dates){
     for(const block of ['1','2','3']){
       const cfg=OFFICIAL_BLOCKS[block];
-      const rows=DATA.filter(r=>r.date===date&&String(r.block)===block);
+      const rows=source.filter(r=>r.date===date&&String(r.block)===block);
       if(!rows.length)continue;
       const slotCount=Math.round((cfg.end-cfg.start)/30);
       const capacities=balancedCapacities(rows.length,slotCount);
       const queues=new Map();
       for(const r of rows){if(!queues.has(r.cargo))queues.set(r.cargo,[]);queues.get(r.cargo).push(r);}
-      for(const q of queues.values())q.sort((a,b)=>Number(a.seq)-Number(b.seq)||a.id-b.id);
+      for(const q of queues.values())q.sort((a,b)=>Number(a.seq||999)-Number(b.seq||999)||String(a.rowKey).localeCompare(String(b.rowKey)));
       for(let slotIndex=0;slotIndex<slotCount;slotIndex++){
         const capacity=capacities[slotIndex],picked=[],used=new Set(),slotsLeft=slotCount-slotIndex;
         for(let pos=0;pos<capacity;pos++){
@@ -338,12 +345,13 @@ function buildScheduleAssignments(){
         for(let i=0;i<picked.length;i++){
           const offset=Math.max(1,Math.min(29,Math.round(((i+1)*30)/(picked.length+1))));
           const exact=start+offset;
-          scheduleAssignments.set(picked[i].id,{date,block,slotIndex,slotKey,windowStart:start,windowEnd:end,suggestedMinute:exact,suggestedTime:minutesToTime(exact),windowLabel:`${minutesToTime(start)}–${minutesToTime(end)}`,position:i+1,windowCount:picked.length});
+          scheduleAssignments.set(picked[i].rowKey,{date,block,slotIndex,slotKey,windowStart:start,windowEnd:end,suggestedMinute:exact,suggestedTime:minutesToTime(exact),windowLabel:`${minutesToTime(start)}–${minutesToTime(end)}`,position:i+1,windowCount:picked.length});
         }
       }
     }
   }
 }
+operationalRows=DATA;
 buildScheduleAssignments();
 
 function setMessage(el,text='',kind='info'){ el.textContent=text; el.className=text?`message show ${kind}`:'message'; }
@@ -355,6 +363,12 @@ function isoToBr(s){ const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s||''); return m?`
 function ordinal(n){ return `${n}ª`; }
 function td(text,cls=''){ const el=document.createElement('td'); if(cls)el.className=cls; el.textContent=text; return el; }
 function currentWho(){ return currentUser?.email || currentUser?.id || 'usuário'; }
+function mapCandidate(m){ return (m?.candidate_name||'').trim() || candidateFor(m?.cargo,m?.program_party); }
+function candidateForRow(r){ return (r?.candidateName||r?.spotInfo?.candidateName||spotAssignments.get(r?.id)?.candidateName||'').trim() || candidateFor(r?.cargo,r?.party); }
+function checkRef(r){ return r?.checkType==='media' ? {type:'media',table:MEDIA_CHECK_TABLE,key:'sequence_id',id:Number(r.checkId),set:checkedMedia,meta:mediaCheckMeta} : {type:'official',table:CHECK_TABLE,key:'line_id',id:Number(r?.checkId??r?.id),set:checked,meta:checkMeta}; }
+function isRowDone(r){ const ref=checkRef(r); return ref.set.has(ref.id); }
+function rowCheckMeta(r){ const ref=checkRef(r); return ref.meta.get(ref.id); }
+function rowDomKey(r){ return r?.rowKey || `o${r?.id}`; }
 function setBusy(state,note=''){ busy=state; document.querySelectorAll('.sync-action').forEach(b=>b.disabled=state||!currentUser); document.querySelectorAll('input.check').forEach(cb=>cb.disabled=state||!currentUser); if(note)operationNote.textContent=note; else if(!state)operationNote.textContent='Alterações aparecem nos outros computadores em tempo real.'; }
 function setMediaBusy(state){ document.querySelectorAll('.media-action').forEach(b=>b.disabled=state||!currentUser); }
 
@@ -369,7 +383,7 @@ function showAuthenticated(user){
   $('userEmail').textContent=user.email||user.id; setBusy(false); setMediaBusy(false); showView(currentView);
 }
 function showLoggedOut(){
-  currentUser=null; checked.clear(); checkMeta.clear(); mediaMaps=[]; mediaSpots=[]; mediaSequences=[]; spotAssignments.clear();
+  currentUser=null; checked.clear(); checkMeta.clear(); checkedMedia.clear(); mediaCheckMeta.clear(); mediaMaps=[]; mediaSpots=[]; mediaSequences=[]; spotAssignments.clear(); operationalRows=DATA;
   accountPanel.classList.add('hidden'); navPanel.classList.add('hidden'); programacaoView.classList.add('hidden'); mapasView.classList.add('hidden'); setupPanel.classList.add('hidden'); loginPanel.classList.remove('hidden'); setLive('Aguardando login','wait');
   if(channel&&client){client.removeChannel(channel);channel=null;}
 }
@@ -379,45 +393,57 @@ function showSetup(){
 
 function applyFilters(){
   const d=dateFilter.value,b=blockFilter.value,c=cargoFilter.value,s=statusFilter.value,q=normalize(searchFilter.value.trim());
-  visibleRows=DATA.filter(r=>{const isDone=checked.has(r.id),candidate=candidateFor(r.cargo,r.party);return(!d||r.date===d)&&(!b||r.block===b)&&(!c||r.cargo===c)&&(!q||normalize(r.party).includes(q)||normalize(candidate).includes(q))&&(!s||(s==='done'?isDone:!isDone));});
+  const source=viewFilter.value==='schedule'?(operationalRows.length?operationalRows:DATA):DATA;
+  visibleRows=source.filter(r=>{
+    const isDone=isRowDone(r),candidate=candidateForRow(r),spot=r.spotInfo||spotAssignments.get(r.id);
+    const searchable=[r.party,candidate,spot?.code,spot?.title,spot?.audioFilename,spot?.mapNumber].map(normalize).join(' ');
+    return(!d||r.date===d)&&(!b||String(r.block)===b)&&(!c||r.cargo===c)&&(!q||searchable.includes(q))&&(!s||(s==='done'?isDone:!isDone));
+  });
   if(viewFilter.value==='schedule')visibleRows.sort((a,b)=>{
-    const sa=scheduleAssignments.get(a.id),sb=scheduleAssignments.get(b.id);
+    const sa=scheduleAssignments.get(rowDomKey(a)),sb=scheduleAssignments.get(rowDomKey(b));
     if(a.date!==b.date)return brToIso(a.date).localeCompare(brToIso(b.date));
     if(Number(a.block)!==Number(b.block))return Number(a.block)-Number(b.block);
-    return (sa?.slotIndex??999)-(sb?.slotIndex??999)||(sa?.suggestedMinute??9999)-(sb?.suggestedMinute??9999)||a.id-b.id;
+    return (sa?.slotIndex??999)-(sb?.slotIndex??999)||(sa?.suggestedMinute??9999)-(sb?.suggestedMinute??9999)||String(rowDomKey(a)).localeCompare(String(rowDomKey(b)));
   });
   render(); updateMediaProgramWarning();
 }
 function renderSpotCell(r){
-  const cell=document.createElement('td'); cell.className='spotcell'; const a=spotAssignments.get(r.id);
+  const cell=document.createElement('td'); cell.className='spotcell'; const a=r.spotInfo||spotAssignments.get(r.id);
   if(!a){cell.textContent='—';return cell;}
-  const badge=document.createElement('span'); badge.className='spot-badge'+(a.conflict?' conflict':''); badge.textContent=a.conflict?'CONFLITO':a.code; cell.appendChild(badge);
-  const sub=document.createElement('div'); sub.className='spot-order'; sub.textContent=a.conflict?`${a.maps.join(' / ')}`:`${ordinal(a.order)} inserção • mapa ${a.mapNumber||'s/n'}`; cell.appendChild(sub); return cell;
+  const badge=document.createElement('span'); badge.className='spot-badge'; badge.textContent=a.code; cell.appendChild(badge);
+  if(a.title&&a.title!==a.code){const title=document.createElement('div');title.className='spot-order';title.textContent=a.title;cell.appendChild(title);}
+  const sub=document.createElement('div'); sub.className='spot-order';
+  const parts=[`${a.duration||30}s`,`${ordinal(a.order)} no mapa`,a.mapNumber?`mapa ${a.mapNumber}`:'mapa s/n'];
+  if(r.extraMedia)parts.push('sem linha oficial correspondente');
+  sub.textContent=parts.join(' • '); cell.appendChild(sub);
+  if(a.audioFilename){const f=document.createElement('div');f.className='source-note';f.textContent=a.audioFilename;cell.appendChild(f);}
+  return cell;
 }
 function makeCheckCell(r,isDone){
-  const ctd=document.createElement('td');ctd.className='checkcell';const cb=document.createElement('input');cb.type='checkbox';cb.className='check';cb.checked=isDone;cb.disabled=busy||!currentUser;cb.setAttribute('aria-label',`Marcar ${r.date}, bloco ${r.block}, sequência ${r.seq}, ${r.cargo}`);cb.addEventListener('change',()=>{const tr=cb.closest('tr');changeOne(r,cb.checked,tr,cb);});ctd.appendChild(cb);return ctd;
+  const ctd=document.createElement('td');ctd.className='checkcell';const cb=document.createElement('input');cb.type='checkbox';cb.className='check';cb.checked=isDone;cb.disabled=busy||!currentUser;cb.setAttribute('aria-label',`Marcar ${r.date}, bloco ${r.block}, sequência ${r.seq||'sem sequência'}, ${r.cargo}`);cb.addEventListener('change',()=>{const tr=cb.closest('tr');changeOne(r,cb.checked,tr,cb);});ctd.appendChild(cb);return ctd;
 }
-function appendMetaCells(tr,r,isDone){const meta=checkMeta.get(r.id);tr.appendChild(td(isDone?(meta?.checked_by||'—'):'—','who meta-who'));tr.appendChild(td(isDone?formatWhen(meta?.checked_at):'—','when meta-when'));}
+function appendMetaCells(tr,r,isDone){const meta=rowCheckMeta(r);tr.appendChild(td(isDone?(meta?.checked_by||'—'):'—','who meta-who'));tr.appendChild(td(isDone?formatWhen(meta?.checked_at):'—','when meta-when'));}
+function markRowDataset(tr,r){const ref=checkRef(r);tr.dataset.rowkey=rowDomKey(r);tr.dataset.checktype=ref.type;tr.dataset.checkid=String(ref.id);if(r.extraMedia)tr.classList.add('extra-media');}
 function renderOfficial(){
   const frag=document.createDocumentFragment();tbody.textContent='';
   for(const r of visibleRows){
-    const tr=document.createElement('tr');tr.dataset.id=String(r.id);const isDone=checked.has(r.id);if(isDone)tr.classList.add('done');
-    tr.appendChild(makeCheckCell(r,isDone));tr.appendChild(td(r.date,'datecell'));tr.appendChild(td(r.block,'num'));tr.appendChild(td(r.seq,'num'));tr.appendChild(td(r.party,'party'));tr.appendChild(td(candidateFor(r.cargo,r.party),'candidate'));tr.appendChild(td(r.cargo,'cargo'));tr.appendChild(renderSpotCell(r));appendMetaCells(tr,r,isDone);frag.appendChild(tr);
+    const tr=document.createElement('tr');markRowDataset(tr,r);const isDone=isRowDone(r);if(isDone)tr.classList.add('done');
+    tr.appendChild(makeCheckCell(r,isDone));tr.appendChild(td(r.date,'datecell'));tr.appendChild(td(r.block,'num'));tr.appendChild(td(r.seq,'num'));tr.appendChild(td(r.party,'party'));tr.appendChild(td(candidateForRow(r),'candidate'));tr.appendChild(td(r.cargo,'cargo'));tr.appendChild(renderSpotCell(r));appendMetaCells(tr,r,isDone);frag.appendChild(tr);
   }
   tbody.appendChild(frag);empty.hidden=visibleRows.length!==0;
 }
 function renderSchedule(){
-  const frag=document.createDocumentFragment();scheduleBody.textContent='';let lastDate='',lastSlot='';const visibleSlotCounts=new Map();for(const row of visibleRows){const sa=scheduleAssignments.get(row.id);if(sa)visibleSlotCounts.set(sa.slotKey,(visibleSlotCounts.get(sa.slotKey)||0)+1);}
+  const frag=document.createDocumentFragment();scheduleBody.textContent='';let lastDate='',lastSlot='';const visibleSlotCounts=new Map();for(const row of visibleRows){const sa=scheduleAssignments.get(rowDomKey(row));if(sa)visibleSlotCounts.set(sa.slotKey,(visibleSlotCounts.get(sa.slotKey)||0)+1);}
   for(const r of visibleRows){
-    const a=scheduleAssignments.get(r.id);if(!a)continue;
+    const a=scheduleAssignments.get(rowDomKey(r));if(!a)continue;
     if(r.date!==lastDate){const dr=document.createElement('tr');dr.className='schedule-date-header';const dc=document.createElement('td');dc.colSpan=11;dc.textContent=r.date;dr.appendChild(dc);frag.appendChild(dr);lastDate=r.date;lastSlot='';}
     if(a.slotKey!==lastSlot){
       const sr=document.createElement('tr');sr.className='slot-header';const sc=document.createElement('td');sc.colSpan=11;
       const visibleInSlot=visibleSlotCounts.get(a.slotKey)||0,total=scheduleSlotTotals.get(a.slotKey)||a.windowCount;
       sc.textContent=`${a.windowLabel} • Bloco oficial ${r.block} • ${visibleInSlot===total?`${total} spot(s)`:`${visibleInSlot} visível(is) de ${total} spot(s)`}`;sr.appendChild(sc);frag.appendChild(sr);lastSlot=a.slotKey;
     }
-    const tr=document.createElement('tr');tr.dataset.id=String(r.id);const isDone=checked.has(r.id);if(isDone)tr.classList.add('done');
-    tr.appendChild(makeCheckCell(r,isDone));tr.appendChild(td(a.suggestedTime,'timecell'));tr.appendChild(td(a.windowLabel,'windowcell'));tr.appendChild(td(r.block,'num'));tr.appendChild(td(r.seq,'num'));tr.appendChild(td(r.party,'party'));tr.appendChild(td(candidateFor(r.cargo,r.party),'candidate'));
+    const tr=document.createElement('tr');markRowDataset(tr,r);const isDone=isRowDone(r);if(isDone)tr.classList.add('done');
+    tr.appendChild(makeCheckCell(r,isDone));tr.appendChild(td(a.suggestedTime,'timecell'));tr.appendChild(td(a.windowLabel,'windowcell'));tr.appendChild(td(r.block,'num'));tr.appendChild(td(r.seq||'—','num'));tr.appendChild(td(r.party,'party'));tr.appendChild(td(candidateForRow(r),'candidate'));
     const cargoCell=document.createElement('td');cargoCell.className='cargo';const tag=document.createElement('span');tag.className='cargo-tag';tag.textContent=r.cargo;cargoCell.appendChild(tag);tr.appendChild(cargoCell);tr.appendChild(renderSpotCell(r));appendMetaCells(tr,r,isDone);frag.appendChild(tr);
   }
   scheduleBody.appendChild(frag);scheduleEmpty.hidden=visibleRows.length!==0;updateScheduleInfo();
@@ -425,115 +451,187 @@ function renderSchedule(){
 function updateScheduleInfo(){
   if(viewFilter.value!=='schedule')return;
   const d=dateFilter.value,b=blockFilter.value;
-  const base=DATA.filter(r=>(!d||r.date===d)&&(!b||String(r.block)===b));
-  const counts=new Map();for(const r of base){const a=scheduleAssignments.get(r.id);if(a)counts.set(a.slotKey,(counts.get(a.slotKey)||0)+1);}
+  const source=operationalRows.length?operationalRows:DATA;
+  const base=source.filter(r=>(!d||r.date===d)&&(!b||String(r.block)===b));
+  const counts=new Map();for(const r of base){const a=scheduleAssignments.get(rowDomKey(r));if(a)counts.set(a.slotKey,(counts.get(a.slotKey)||0)+1);}
   const vals=[...counts.values()];if(!vals.length){scheduleInfo.textContent='Nenhuma inserção para o período selecionado.';return;}
-  const min=Math.min(...vals),max=Math.max(...vals),days=new Set(base.map(r=>r.date)).size;
-  scheduleInfo.textContent=`${base.length.toLocaleString('pt-BR')} spot(s) distribuídos em ${vals.length.toLocaleString('pt-BR')} janela(s) de 30 minutos${days>1?` em ${days} dias`:''}. Carga por janela: ${min===max?min:`${min} a ${max}`} spot(s). Horários exatos são sugestões espaçadas dentro de cada meia hora.`;
+  const min=Math.min(...vals),max=Math.max(...vals),days=new Set(base.map(r=>r.date)).size,extras=base.filter(r=>r.extraMedia).length;
+  scheduleInfo.textContent=`${base.length.toLocaleString('pt-BR')} posição(ões) operacional(is) distribuída(s) em ${vals.length.toLocaleString('pt-BR')} janela(s) de 30 minutos${days>1?` em ${days} dias`:''}. Carga por janela: ${min===max?min:`${min} a ${max}`} spot(s).${extras?` ${extras} inserção(ões) veio/vieram do mapa de mídia sem linha oficial 1:1 e está(ão) destacada(s).`:''} Horários exatos são sugestões espaçadas dentro de cada meia hora.`;
 }
 function render(){
   const scheduleMode=viewFilter.value==='schedule';schedulePanel.classList.toggle('hidden',!scheduleMode);scheduleSummaryPanel.classList.toggle('hidden',!scheduleMode);tablePanel.classList.toggle('hidden',scheduleMode);
   if(scheduleMode)renderSchedule();else renderOfficial();updateStats();
 }
-function applyRowState(id){
-  document.querySelectorAll(`tr[data-id="${id}"]`).forEach(tr=>{const isDone=checked.has(id),meta=checkMeta.get(id);tr.classList.toggle('done',isDone);const cb=tr.querySelector('input.check');if(cb)cb.checked=isDone;const who=tr.querySelector('.meta-who');if(who)who.textContent=isDone?(meta?.checked_by||'—'):'—';const when=tr.querySelector('.meta-when');if(when)when.textContent=isDone?formatWhen(meta?.checked_at):'—';});
+function applyRowStateByRef(type,id){
+  const set=type==='media'?checkedMedia:checked,metaMap=type==='media'?mediaCheckMeta:checkMeta,isDone=set.has(Number(id)),meta=metaMap.get(Number(id));
+  document.querySelectorAll(`tr[data-checktype="${type}"][data-checkid="${id}"]`).forEach(tr=>{tr.classList.toggle('done',isDone);const cb=tr.querySelector('input.check');if(cb)cb.checked=isDone;const who=tr.querySelector('.meta-who');if(who)who.textContent=isDone?(meta?.checked_by||'—'):'—';const when=tr.querySelector('.meta-when');if(when)when.textContent=isDone?formatWhen(meta?.checked_at):'—';});
 }
-function updateStats(){ const dv=visibleRows.reduce((n,r)=>n+(checked.has(r.id)?1:0),0); const pct=DATA.length?Math.round((checked.size/DATA.length)*1000)/10:0; visibleCount.textContent=visibleRows.length.toLocaleString('pt-BR'); doneVisible.textContent=dv.toLocaleString('pt-BR'); doneAll.textContent=checked.size.toLocaleString('pt-BR'); percentAll.textContent=pct.toLocaleString('pt-BR')+'%'; progressBar.style.width=Math.min(100,pct)+'%'; }
+function updateStats(){ const dv=visibleRows.reduce((n,r)=>n+(isRowDone(r)?1:0),0);const source=viewFilter.value==='schedule'?(operationalRows.length?operationalRows:DATA):DATA;const da=source.reduce((n,r)=>n+(isRowDone(r)?1:0),0); const pct=source.length?Math.round((da/source.length)*1000)/10:0; visibleCount.textContent=visibleRows.length.toLocaleString('pt-BR'); doneVisible.textContent=dv.toLocaleString('pt-BR'); doneAll.textContent=da.toLocaleString('pt-BR'); percentAll.textContent=pct.toLocaleString('pt-BR')+'%'; progressBar.style.width=Math.min(100,pct)+'%'; }
 function updateMediaProgramWarning(){
   const box=$('mediaProgramWarning'); if(!mediaMismatches.length){setMessage(box,'','info');return;}
-  const relevant=mediaMismatches.filter(w=>(!dateFilter.value||w.date===dateFilter.value)&&(!blockFilter.value||String(w.block)===blockFilter.value)&&(!cargoFilter.value||w.cargo===cargoFilter.value)&&(!searchFilter.value||(normalize(w.party).includes(normalize(searchFilter.value))||normalize(candidateFor(w.cargo,w.party)).includes(normalize(searchFilter.value)))));
-  if(relevant.length) setMessage(box,`⚠️ ${relevant.length} bloco(s) com divergência entre a quantidade de spots cadastrados e as ocorrências da programação oficial. Confira em “Mapas de Mídia”.`,'warn'); else setMessage(box,'','info');
+  const relevant=mediaMismatches.filter(w=>(!dateFilter.value||w.date===dateFilter.value)&&(!blockFilter.value||String(w.block)===blockFilter.value)&&(!cargoFilter.value||w.cargo===cargoFilter.value)&&(!searchFilter.value||(normalize(w.party).includes(normalize(searchFilter.value))||normalize(w.candidates||'').includes(normalize(searchFilter.value)))));
+  if(relevant.length) setMessage(box,`⚠️ ${relevant.length} bloco(s) em que a soma dos mapas recebidos não coincide com a quantidade da programação oficial. As inserções extras continuam visíveis e as faltantes permanecem como “spot não cadastrado”. Confira em “Mapas de Mídia”.`,'warn'); else setMessage(box,'','info');
 }
-
-function rebuildSpotAssignments(){
-  spotAssignments=new Map(); mediaMismatches=[];
-  const mapsById=new Map(mediaMaps.map(m=>[String(m.id),m])); const spotsById=new Map(mediaSpots.map(s=>[String(s.id),s]));
-  const grouped=new Map();
-  for(const seq of mediaSequences){ const map=mapsById.get(String(seq.map_id)); if(!map||!map.active)continue; const key=`${seq.map_id}|${seq.sequence_date}|${seq.block}`; if(!grouped.has(key))grouped.set(key,[]); grouped.get(key).push(seq); }
-  for(const [key,seqs] of grouped){
-    const map=mapsById.get(String(seqs[0].map_id)); const br=isoToBr(seqs[0].sequence_date); const block=String(seqs[0].block); const rows=programIndex.get(`${br}|${block}|${map.cargo}|${map.program_party}`)||[];
-    const orders=[...seqs].sort((a,b)=>Number(a.occurrence_order)-Number(b.occurrence_order));
-    if(orders.length!==rows.length) mediaMismatches.push({mapId:map.id,mapNumber:map.map_number,date:br,block:Number(block),party:map.program_party,cargo:map.cargo,registered:orders.length,official:rows.length});
-    for(const seq of orders){ const target=rows[Number(seq.occurrence_order)-1]; const spot=spotsById.get(String(seq.spot_id)); if(!target||!spot)continue; const existing=spotAssignments.get(target.id); const item={code:spot.code,order:Number(seq.occurrence_order),mapNumber:map.map_number,mapId:map.id,conflict:false,maps:[map.map_number||String(map.id)]};
-      if(!existing)spotAssignments.set(target.id,item); else spotAssignments.set(target.id,{code:'',order:item.order,conflict:true,maps:[...(existing.maps||[existing.mapNumber]),map.map_number||String(map.id)]});
+function interleaveMediaItems(items){
+  const queues=new Map();
+  for(const item of items){const k=String(item.map.id);if(!queues.has(k))queues.set(k,{map:item.map,items:[]});queues.get(k).items.push(item);}
+  const list=[...queues.values()].sort((a,b)=>mapCandidate(a.map).localeCompare(mapCandidate(b.map),'pt-BR')||Number(a.map.id)-Number(b.map.id));
+  for(const q of list)q.items.sort((a,b)=>Number(a.seq.occurrence_order)-Number(b.seq.occurrence_order));
+  const out=[];let remaining=true,round=0;
+  while(remaining&&round<200){remaining=false;for(const q of list){if(q.items.length){out.push(q.items.shift());remaining=true;}}round++;}
+  return out;
+}
+function rebuildOperationalRows(){
+  spotAssignments=new Map(); mediaMismatches=[]; operationalRows=[];
+  const mapsById=new Map(mediaMaps.map(m=>[String(m.id),m])),spotsById=new Map(mediaSpots.map(s=>[String(s.id),s]));
+  const mediaGroups=new Map();
+  for(const seq of mediaSequences){
+    const map=mapsById.get(String(seq.map_id)),spot=spotsById.get(String(seq.spot_id));if(!map||!map.active||!spot)continue;
+    const br=isoToBr(seq.sequence_date),key=`${br}|${seq.block}|${map.cargo}|${map.program_party}`;
+    if(!mediaGroups.has(key))mediaGroups.set(key,[]);
+    mediaGroups.get(key).push({seq,map,spot});
+  }
+  const keys=new Set([...programIndex.keys(),...mediaGroups.keys()]);
+  for(const key of keys){
+    const [date,block,cargo,...partyParts]=key.split('|'),party=partyParts.join('|');
+    const official=[...(programIndex.get(key)||[])].sort((a,b)=>Number(a.seq)-Number(b.seq));
+    const media=interleaveMediaItems(mediaGroups.get(key)||[]);
+    if(mediaGroups.has(key)&&media.length!==official.length){
+      mediaMismatches.push({date,block:Number(block),party,cargo,registered:media.length,official:official.length,mapIds:[...new Set(media.map(x=>String(x.map.id)))],candidates:[...new Set(media.map(x=>mapCandidate(x.map)))].join(' / ')});
+    }
+    const total=Math.max(official.length,media.length);
+    for(let i=0;i<total;i++){
+      const base=official[i],mi=media[i];
+      let spotInfo=null;
+      if(mi)spotInfo={code:mi.spot.code,title:mi.spot.title||mi.spot.code,duration:Number(mi.spot.duration_seconds)||30,audioFilename:mi.spot.audio_filename||'',order:Number(mi.seq.occurrence_order),mapNumber:mi.map.map_number,mapId:mi.map.id,sequenceId:Number(mi.seq.id),candidateName:mapCandidate(mi.map),sourceFile:mi.map.source_file||''};
+      if(base){
+        const r={...base,rowKey:`o${base.id}`,checkType:'official',checkId:base.id,candidateName:spotInfo?.candidateName||'',spotInfo,extraMedia:false};
+        operationalRows.push(r);if(spotInfo)spotAssignments.set(base.id,spotInfo);
+      }else if(mi){
+        operationalRows.push({id:null,rowKey:`m${mi.seq.id}`,checkType:'media',checkId:Number(mi.seq.id),date,block:String(block),seq:'—',party,cargo,page:null,candidateName:spotInfo.candidateName,spotInfo,extraMedia:true});
+      }
     }
   }
-  applyFilters();
+  buildScheduleAssignments();applyFilters();
 }
-
-function updateFromRealtime(payload){ const row=payload.eventType==='DELETE'?payload.old:payload.new; const id=Number(row?.line_id); if(!Number.isInteger(id))return; if(payload.eventType==='DELETE'){checked.delete(id);checkMeta.delete(id);}else{checked.add(id);checkMeta.set(id,{checked_at:row.checked_at,checked_by:row.checked_by});} if(statusFilter.value)applyFilters();else{applyRowState(id);updateStats();} setLive('Tempo real conectado','live'); }
+function updateFromRealtime(payload){ const row=payload.eventType==='DELETE'?payload.old:payload.new; const id=Number(row?.line_id); if(!Number.isInteger(id))return; if(payload.eventType==='DELETE'){checked.delete(id);checkMeta.delete(id);}else{checked.add(id);checkMeta.set(id,{checked_at:row.checked_at,checked_by:row.checked_by});} if(statusFilter.value)applyFilters();else{applyRowStateByRef('official',id);updateStats();} setLive('Tempo real conectado','live'); }
+function updateMediaCheckRealtime(payload){const row=payload.eventType==='DELETE'?payload.old:payload.new;const id=Number(row?.sequence_id);if(!Number.isInteger(id))return;if(payload.eventType==='DELETE'){checkedMedia.delete(id);mediaCheckMeta.delete(id);}else{checkedMedia.add(id);mediaCheckMeta.set(id,{checked_at:row.checked_at,checked_by:row.checked_by});}if(statusFilter.value)applyFilters();else{applyRowStateByRef('media',id);updateStats();}setLive('Tempo real conectado','live');}
 function scheduleMediaReload(){ clearTimeout(mediaReloadTimer); mediaReloadTimer=setTimeout(()=>loadMediaData(true),250); }
 async function subscribeRealtime(){
   if(channel)await client.removeChannel(channel);
   return new Promise(resolve=>{ channel=client.channel('programacao-eleitoral-live')
     .on('postgres_changes',{event:'*',schema:'public',table:CHECK_TABLE},updateFromRealtime)
+    .on('postgres_changes',{event:'*',schema:'public',table:MEDIA_CHECK_TABLE},updateMediaCheckRealtime)
     .on('postgres_changes',{event:'*',schema:'public',table:MAP_TABLE},scheduleMediaReload)
     .on('postgres_changes',{event:'*',schema:'public',table:SPOT_TABLE},scheduleMediaReload)
     .on('postgres_changes',{event:'*',schema:'public',table:SEQUENCE_TABLE},scheduleMediaReload)
     .subscribe(status=>{if(status==='SUBSCRIBED'){setLive('Tempo real conectado','live');resolve();}else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT')setLive('Falha no tempo real','off');else if(status==='CLOSED')setLive('Tempo real desconectado','off');}); });
 }
 async function loadChecks(){ setMessage(appMessage,'Carregando marcações compartilhadas…','info'); const {data,error}=await client.from(CHECK_TABLE).select('line_id,checked_at,checked_by').order('line_id'); if(error){setMessage(appMessage,`Erro ao carregar os checks: ${error.message}`,'error');return false;} checked=new Set();checkMeta=new Map();for(const row of data||[]){const id=Number(row.line_id);if(Number.isInteger(id)){checked.add(id);checkMeta.set(id,{checked_at:row.checked_at,checked_by:row.checked_by});}} setMessage(appMessage,'','info');applyFilters();return true; }
+async function loadMediaChecks(){const {data,error}=await client.from(MEDIA_CHECK_TABLE).select('sequence_id,checked_at,checked_by').order('sequence_id');if(error){checkedMedia=new Set();mediaCheckMeta=new Map();return false;}checkedMedia=new Set();mediaCheckMeta=new Map();for(const row of data||[]){const id=Number(row.sequence_id);if(Number.isInteger(id)){checkedMedia.add(id);mediaCheckMeta.set(id,{checked_at:row.checked_at,checked_by:row.checked_by});}}applyFilters();return true;}
 async function loadMediaData(silent=false){
   if(!silent)setMessage(mediaMessage,'Carregando mapas de mídia…','info');
   const [mr,sr,qr]=await Promise.all([client.from(MAP_TABLE).select('*').order('start_date',{ascending:false}).order('id',{ascending:false}),client.from(SPOT_TABLE).select('*').order('code'),client.from(SEQUENCE_TABLE).select('*').order('sequence_date').order('block').order('occurrence_order')]);
   const err=mr.error||sr.error||qr.error;
-  if(err){ mediaMaps=[];mediaSpots=[];mediaSequences=[];spotAssignments.clear(); setMessage(mediaMessage,`Mapas de mídia ainda não estão disponíveis no Supabase. Execute o arquivo de atualização SQL antes de usar esta seção. Detalhe: ${err.message}`,'warn'); render(); renderMapWorkspace(); return false; }
-  mediaMaps=mr.data||[];mediaSpots=sr.data||[];mediaSequences=qr.data||[]; if(!silent)setMessage(mediaMessage,'','info'); rebuildSpotAssignments(); renderMapWorkspace(); return true;
+  if(err){ mediaMaps=[];mediaSpots=[];mediaSequences=[];spotAssignments.clear();operationalRows=DATA;buildScheduleAssignments(); setMessage(mediaMessage,`Mapas de mídia ainda não estão disponíveis no Supabase. Execute o arquivo de atualização SQL antes de usar esta seção. Detalhe: ${err.message}`,'warn'); render(); renderMapWorkspace(); return false; }
+  mediaMaps=mr.data||[];mediaSpots=sr.data||[];mediaSequences=qr.data||[]; if(!silent)setMessage(mediaMessage,'','info'); rebuildOperationalRows(); renderMapWorkspace(); return true;
 }
-async function startSync(){ try{await subscribeRealtime();await Promise.all([loadChecks(),loadMediaData()]);}catch(e){setMessage(appMessage,`Não foi possível iniciar a sincronização: ${e.message}`,'error');setLive('Falha de conexão','off');} }
+async function startSync(){ try{await subscribeRealtime();await Promise.all([loadChecks(),loadMediaData(),loadMediaChecks()]);}catch(e){setMessage(appMessage,`Não foi possível iniciar a sincronização: ${e.message}`,'error');setLive('Falha de conexão','off');} }
 
-async function changeOne(r,state,tr,cb){ if(!currentUser||busy){cb.checked=checked.has(r.id);return;} tr.classList.add('saving');cb.disabled=true;const previous=checked.has(r.id),previousMeta=checkMeta.get(r.id);if(state){const meta={checked_at:new Date().toISOString(),checked_by:currentWho()};checked.add(r.id);checkMeta.set(r.id,meta);}else{checked.delete(r.id);checkMeta.delete(r.id);}applyRowState(r.id);updateStats();let result;if(state)result=await client.from(CHECK_TABLE).upsert({line_id:r.id,checked_at:new Date().toISOString(),checked_by:currentWho()},{onConflict:'line_id'});else result=await client.from(CHECK_TABLE).delete().eq('line_id',r.id);tr.classList.remove('saving');cb.disabled=busy||!currentUser;if(result.error){if(previous){checked.add(r.id);if(previousMeta)checkMeta.set(r.id,previousMeta);}else{checked.delete(r.id);checkMeta.delete(r.id);}applyRowState(r.id);updateStats();setMessage(appMessage,`Não foi possível salvar: ${result.error.message}`,'error');}else setMessage(appMessage,'','info'); }
-async function runBatches(ids,state){ if(!ids.length)return;setBusy(true,`Sincronizando 0 de ${ids.length.toLocaleString('pt-BR')}…`);setMessage(appMessage,'','info');try{for(let i=0;i<ids.length;i+=BATCH_SIZE){const batch=ids.slice(i,i+BATCH_SIZE);let res;if(state){const now=new Date().toISOString(),who=currentWho();res=await client.from(CHECK_TABLE).upsert(batch.map(id=>({line_id:id,checked_at:now,checked_by:who})),{onConflict:'line_id'});if(!res.error)for(const id of batch){checked.add(id);checkMeta.set(id,{checked_at:now,checked_by:who});}}else{res=await client.from(CHECK_TABLE).delete().in('line_id',batch);if(!res.error)for(const id of batch){checked.delete(id);checkMeta.delete(id);}}if(res.error)throw res.error;operationNote.textContent=`Sincronizando ${Math.min(i+BATCH_SIZE,ids.length).toLocaleString('pt-BR')} de ${ids.length.toLocaleString('pt-BR')}…`;}applyFilters();setMessage(appMessage,state?'Linhas marcadas e sincronizadas.':'Linhas desmarcadas e sincronizadas.','ok');}catch(e){setMessage(appMessage,`A sincronização foi interrompida: ${e.message}`,'error');await loadChecks();}finally{setBusy(false);} }
+async function changeOne(r,state,tr,cb){
+  if(!currentUser||busy){cb.checked=isRowDone(r);return;}
+  const ref=checkRef(r);tr.classList.add('saving');cb.disabled=true;const previous=ref.set.has(ref.id),previousMeta=ref.meta.get(ref.id);
+  if(state){const meta={checked_at:new Date().toISOString(),checked_by:currentWho()};ref.set.add(ref.id);ref.meta.set(ref.id,meta);}else{ref.set.delete(ref.id);ref.meta.delete(ref.id);}applyRowStateByRef(ref.type,ref.id);updateStats();
+  let result;if(state){const payload={[ref.key]:ref.id,checked_at:new Date().toISOString(),checked_by:currentWho()};result=await client.from(ref.table).upsert(payload,{onConflict:ref.key});}else result=await client.from(ref.table).delete().eq(ref.key,ref.id);
+  tr.classList.remove('saving');cb.disabled=busy||!currentUser;
+  if(result.error){if(previous){ref.set.add(ref.id);if(previousMeta)ref.meta.set(ref.id,previousMeta);}else{ref.set.delete(ref.id);ref.meta.delete(ref.id);}applyRowStateByRef(ref.type,ref.id);updateStats();setMessage(appMessage,`Não foi possível salvar: ${result.error.message}`,'error');}else setMessage(appMessage,'','info');
+}
+async function runRowBatches(rows,state){
+  const refs=[];const seen=new Set();for(const r of rows){const ref=checkRef(r),k=`${ref.type}:${ref.id}`;if(!seen.has(k)){seen.add(k);refs.push(ref);}}
+  if(!refs.length)return;setBusy(true,`Sincronizando 0 de ${refs.length.toLocaleString('pt-BR')}…`);setMessage(appMessage,'','info');
+  try{
+    for(const type of ['official','media']){
+      const group=refs.filter(r=>r.type===type),table=type==='media'?MEDIA_CHECK_TABLE:CHECK_TABLE,key=type==='media'?'sequence_id':'line_id',set=type==='media'?checkedMedia:checked,meta=type==='media'?mediaCheckMeta:checkMeta;
+      for(let i=0;i<group.length;i+=BATCH_SIZE){
+        const batch=group.slice(i,i+BATCH_SIZE),ids=batch.map(r=>r.id);let res;
+        if(state){const now=new Date().toISOString(),who=currentWho();res=await client.from(table).upsert(ids.map(id=>({[key]:id,checked_at:now,checked_by:who})),{onConflict:key});if(!res.error)for(const id of ids){set.add(id);meta.set(id,{checked_at:now,checked_by:who});}}
+        else{res=await client.from(table).delete().in(key,ids);if(!res.error)for(const id of ids){set.delete(id);meta.delete(id);}}
+        if(res.error)throw res.error;
+      }
+    }
+    applyFilters();setMessage(appMessage,state?'Linhas marcadas e sincronizadas.':'Linhas desmarcadas e sincronizadas.','ok');
+  }catch(e){setMessage(appMessage,`A sincronização foi interrompida: ${e.message}`,'error');await Promise.all([loadChecks(),loadMediaChecks()]);}finally{setBusy(false);}
+}
+async function clearAllSharedChecks(){
+  const total=checked.size+checkedMedia.size;if(!total)return;if(!confirm(`Apagar as ${total.toLocaleString('pt-BR')} marcações compartilhadas?`))return;
+  setBusy(true,'Limpando marcações…');try{
+    const [a,b]=await Promise.all([client.from(CHECK_TABLE).delete().gte('line_id',0),client.from(MEDIA_CHECK_TABLE).delete().gte('sequence_id',0)]);
+    if(a.error)throw a.error;if(b.error)throw b.error;checked.clear();checkMeta.clear();checkedMedia.clear();mediaCheckMeta.clear();applyFilters();setMessage(appMessage,'Marcações apagadas.','ok');
+  }catch(e){setMessage(appMessage,`Não foi possível limpar: ${e.message}`,'error');}finally{setBusy(false);}
+}
 
 function uniquePartiesForCargo(cargo){ return [...new Set(DATA.filter(r=>r.cargo===cargo).map(r=>r.party))].sort((a,b)=>a.localeCompare(b,'pt-BR')); }
-function updateMapCandidateInfo(){const el=$('mapCandidateInfo');if(el)el.textContent=candidateFor($('mapCargo').value,$('mapParty').value);}
+function updateMapCandidateInfo(){const input=$('mapCandidateName');if(input)input.placeholder=candidateFor($('mapCargo').value,$('mapParty').value)==='—'?'Opcional':candidateFor($('mapCargo').value,$('mapParty').value);}
 function refreshPartyOptions(preferred=''){ const cargo=$('mapCargo').value;const parties=uniquePartiesForCargo(cargo);$('mapParty').innerHTML='';for(const p of parties){const o=document.createElement('option');o.value=p;o.textContent=p;$('mapParty').appendChild(o);}if(preferred&&parties.includes(preferred))$('mapParty').value=preferred;updateMapCandidateInfo(); }
 function getSelectedMap(){ return mediaMaps.find(m=>String(m.id)===String(selectedMapId))||null; }
 function mapSpots(mapId){ return mediaSpots.filter(s=>String(s.map_id)===String(mapId)).sort((a,b)=>a.code.localeCompare(b.code,'pt-BR')); }
 function mapSequences(mapId){ return mediaSequences.filter(s=>String(s.map_id)===String(mapId)); }
 function renderMapList(){
   const box=$('mapList');box.textContent='';if(!mediaMaps.length){const d=document.createElement('div');d.className='muted';d.textContent='Nenhum mapa cadastrado.';box.appendChild(d);return;}
-  for(const m of mediaMaps){const b=document.createElement('button');b.type='button';b.className='map-card'+(String(m.id)===String(selectedMapId)?' active':'');b.innerHTML=`<strong>${escapeHtml(m.map_number||'Sem número')} • ${escapeHtml(m.cargo)}</strong><small>${escapeHtml(m.program_party)}</small><small>Candidato(s): ${escapeHtml(candidateFor(m.cargo,m.program_party))}</small><small>${isoToBr(m.start_date)} a ${isoToBr(m.end_date)}${m.active?' • ativo':' • inativo'}</small>`;b.addEventListener('click',()=>{selectedMapId=m.id;fillMapForm(m);renderMapWorkspace();});box.appendChild(b);}
+  for(const m of mediaMaps){const b=document.createElement('button');b.type='button';b.className='map-card'+(String(m.id)===String(selectedMapId)?' active':'');b.innerHTML=`<strong>${escapeHtml(m.map_number||'Sem número')} • ${escapeHtml(m.cargo)}</strong><small>${escapeHtml(m.program_party)}</small><small>Candidato/identificação: ${escapeHtml(mapCandidate(m))}</small><small>${isoToBr(m.start_date)} a ${isoToBr(m.end_date)}${m.active?' • ativo':' • inativo'}</small>${m.source_file?`<small>Fonte: ${escapeHtml(m.source_file)}</small>`:''}`;b.addEventListener('click',()=>{selectedMapId=m.id;fillMapForm(m);renderMapWorkspace();});box.appendChild(b);}
 }
 function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function fillMapForm(m){
-  if(!m){$('mapCargo').value='Presidente';refreshPartyOptions('BRASIL PRONTO PRA MAIS -');$('mapNumber').value='';$('mapTitle').value='';$('mapStart').value=brToIso(dateFilter.value||'28/08/2026');$('mapEnd').value=$('mapStart').value;$('mapActive').checked=true;$('mapNotes').value='';$('sequenceDate').value=$('mapStart').value;renderSpotEditor([]);renderSequenceEditor();return;}
-  $('mapCargo').value=m.cargo;refreshPartyOptions(m.program_party);$('mapNumber').value=m.map_number||'';$('mapTitle').value=m.title||'';$('mapStart').value=m.start_date||'';$('mapEnd').value=m.end_date||'';$('mapActive').checked=!!m.active;$('mapNotes').value=m.notes||'';const cur=$('sequenceDate').value;if(!cur||cur<m.start_date||cur>m.end_date)$('sequenceDate').value=m.start_date;renderSpotEditor(mapSpots(m.id));renderSequenceEditor();
+  $('sequenceCount').dataset.context='';
+  if(!m){$('mapCargo').value='Presidente';refreshPartyOptions('BRASIL PRONTO PRA MAIS -');$('mapCandidateName').value='';$('mapNumber').value='';$('mapSourceFile').value='';$('mapTitle').value='';$('mapStart').value=brToIso(dateFilter.value||'28/08/2026');$('mapEnd').value=$('mapStart').value;$('mapActive').checked=true;$('mapNotes').value='';$('sequenceDate').value=$('mapStart').value;renderSpotEditor([]);renderSequenceEditor();return;}
+  $('mapCargo').value=m.cargo;refreshPartyOptions(m.program_party);$('mapCandidateName').value=m.candidate_name||'';$('mapNumber').value=m.map_number||'';$('mapSourceFile').value=m.source_file||'';$('mapTitle').value=m.title||'';$('mapStart').value=m.start_date||'';$('mapEnd').value=m.end_date||'';$('mapActive').checked=!!m.active;$('mapNotes').value=m.notes||'';const cur=$('sequenceDate').value;if(!cur||cur<m.start_date||cur>m.end_date)$('sequenceDate').value=m.start_date;renderSpotEditor(mapSpots(m.id));renderSequenceEditor();
 }
-function renderSpotEditor(spots){ const box=$('spotEditor');box.textContent='';const list=spots.length?spots:[{code:'',duration_seconds:30,audio_filename:''}];for(const s of list)addSpotEditorRow(s); }
-function addSpotEditorRow(s={}){ const box=$('spotEditor'),row=document.createElement('div');row.className='spot-edit-row';row.dataset.spotId=s.id||'';row.innerHTML=`<div><label>Código</label><input class="spot-code" type="text" value="${escapeHtml(s.code||'')}" placeholder="L1"></div><div><label>Duração (s)</label><input class="spot-duration" type="number" min="1" max="300" value="${Number(s.duration_seconds)||30}"></div><div><label>Arquivo de áudio (opcional)</label><input class="spot-file" type="text" value="${escapeHtml(s.audio_filename||'')}" placeholder="Ex.: candidato_L1.wav"></div><button type="button" class="danger remove-spot">Remover</button>`;row.querySelector('.remove-spot').addEventListener('click',()=>{if(box.children.length===1){row.querySelector('.spot-code').value='';row.querySelector('.spot-file').value='';return;}row.remove();});box.appendChild(row); }
+function renderSpotEditor(spots){ const box=$('spotEditor');box.textContent='';const list=spots.length?spots:[{code:'',title:'',duration_seconds:30,audio_filename:''}];for(const s of list)addSpotEditorRow(s); }
+function addSpotEditorRow(s={}){
+  const box=$('spotEditor'),row=document.createElement('div');row.className='spot-edit-row';row.dataset.spotId=s.id||'';
+  row.innerHTML=`<div><label>Código</label><input class="spot-code" type="text" value="${escapeHtml(s.code||'')}" placeholder="L1"></div><div><label>Título</label><input class="spot-title" type="text" value="${escapeHtml(s.title||'')}" placeholder="Ex.: INS. RADIO CELINA 001"></div><div><label>Duração (s)</label><input class="spot-duration" type="number" min="1" max="300" value="${Number(s.duration_seconds)||30}"></div><div><label>Arquivo de áudio (opcional)</label><input class="spot-file" type="text" value="${escapeHtml(s.audio_filename||'')}" placeholder="Ex.: candidato_L1.wav"></div><button type="button" class="danger remove-spot">Remover</button>`;
+  row.querySelector('.remove-spot').addEventListener('click',()=>{if(box.children.length===1){row.querySelector('.spot-code').value='';row.querySelector('.spot-title').value='';row.querySelector('.spot-file').value='';return;}row.remove();});box.appendChild(row);
+}
 function renderSequenceEditor(){
-  const box=$('sequenceEditor'),summary=$('sequenceSummary'),warning=$('sequenceWarning');box.textContent='';setMessage(warning,'','info');const m=getSelectedMap();if(!m){summary.textContent='Salve ou selecione um mapa primeiro.';return;}
-  const iso=$('sequenceDate').value,block=$('sequenceBlock').value,br=isoToBr(iso);if(!iso){summary.textContent='Escolha uma data.';return;}const rows=programIndex.get(`${br}|${block}|${m.cargo}|${m.program_party}`)||[];const spots=mapSpots(m.id);const existing=mapSequences(m.id).filter(q=>q.sequence_date===iso&&String(q.block)===String(block));const byOrder=new Map(existing.map(q=>[Number(q.occurrence_order),String(q.spot_id)]));
-  summary.textContent=`${rows.length} ocorrência(s) oficial(is) em ${br}, bloco ${block}.`;
+  const box=$('sequenceEditor'),summary=$('sequenceSummary'),warning=$('sequenceWarning'),countInput=$('sequenceCount');box.textContent='';setMessage(warning,'','info');const m=getSelectedMap();if(!m){summary.textContent='Salve ou selecione um mapa primeiro.';countInput.value=0;return;}
+  const iso=$('sequenceDate').value,block=$('sequenceBlock').value,br=isoToBr(iso);if(!iso){summary.textContent='Escolha uma data.';return;}
+  const rows=programIndex.get(`${br}|${block}|${m.cargo}|${m.program_party}`)||[],spots=mapSpots(m.id),existing=mapSequences(m.id).filter(q=>q.sequence_date===iso&&String(q.block)===String(block)).sort((a,b)=>Number(a.occurrence_order)-Number(b.occurrence_order)),byOrder=new Map(existing.map(q=>[Number(q.occurrence_order),String(q.spot_id)]));
+  const context=`${m.id}|${iso}|${block}`;if(countInput.dataset.context!==context){countInput.dataset.context=context;countInput.value=String(existing.length||rows.length||0);}
+  const count=Math.max(0,Math.min(50,Number(countInput.value)||0));summary.textContent=`Programação oficial: ${rows.length} ocorrência(s) para ${m.program_party} / ${m.cargo}. Este mapa: ${count} inserção(ões).`;
   if(iso<m.start_date||iso>m.end_date)setMessage(warning,`A data escolhida está fora do período do mapa (${isoToBr(m.start_date)} a ${isoToBr(m.end_date)}).`,'warn');
-  if(!rows.length){setMessage(warning,'A campanha não possui inserções nesse bloco/data na programação oficial.','warn');return;}
-  if(!spots.length){setMessage(warning,'Cadastre e salve os materiais antes de montar a ordem.','warn');return;}
-  for(let i=0;i<rows.length;i++){const r=rows[i],order=i+1,row=document.createElement('div');row.className='sequence-row';const info=document.createElement('div');info.innerHTML=`<strong>${ordinal(order)} inserção</strong><div class="muted">${escapeHtml(m.program_party)}</div><div class="muted">${escapeHtml(candidateFor(m.cargo,m.program_party))}</div>`;const seq=document.createElement('div');seq.innerHTML=`<span class="muted">Seq. oficial</span><br><strong>${escapeHtml(r.seq)}</strong>`;const selWrap=document.createElement('div');const sel=document.createElement('select');sel.className='sequence-spot';sel.dataset.order=String(order);const blank=document.createElement('option');blank.value='';blank.textContent='— não definido —';sel.appendChild(blank);for(const s of spots){const o=document.createElement('option');o.value=String(s.id);o.textContent=s.code+(s.audio_filename?` • ${s.audio_filename}`:'');sel.appendChild(o);}sel.value=byOrder.get(order)||'';selWrap.appendChild(sel);row.append(info,seq,selWrap);box.appendChild(row);}
-  if(existing.length&&existing.length!==rows.length)setMessage(warning,`⚠️ Divergência: há ${existing.length} spot(s) cadastrado(s), mas a programação oficial possui ${rows.length} ocorrência(s).`,'warn');
+  if(!spots.length&&count){setMessage(warning,'Cadastre e salve os materiais antes de montar a ordem.','warn');return;}
+  for(let i=0;i<count;i++){
+    const order=i+1,row=document.createElement('div');row.className='sequence-row';const info=document.createElement('div');info.innerHTML=`<strong>${ordinal(order)} inserção deste mapa</strong><div class="muted">${escapeHtml(m.program_party)}</div><div class="muted">${escapeHtml(mapCandidate(m))}</div>`;
+    const seq=document.createElement('div');seq.innerHTML=`<span class="muted">Ordem no mapa</span><br><strong>${order}</strong>`;
+    const selWrap=document.createElement('div'),sel=document.createElement('select');sel.className='sequence-spot';sel.dataset.order=String(order);const blank=document.createElement('option');blank.value='';blank.textContent='— não definido —';sel.appendChild(blank);
+    for(const sp of spots){const o=document.createElement('option');o.value=String(sp.id);o.textContent=`${sp.code}${sp.title&&sp.title!==sp.code?` • ${sp.title}`:''} • ${sp.duration_seconds||30}s${sp.audio_filename?` • ${sp.audio_filename}`:''}`;sel.appendChild(o);}sel.value=byOrder.get(order)||'';selWrap.appendChild(sel);row.append(info,seq,selWrap);box.appendChild(row);
+  }
+  if(existing.length!==count&&existing.length)setMessage(warning,`Você alterou a quantidade deste mapa de ${existing.length} para ${count}. Ao salvar, as posições antigas deste bloco serão atualizadas.`,'warn');
 }
 function renderMapWorkspace(){
   renderMapList();const m=getSelectedMap();if(m){const formId=$('mapNumber').dataset.loadedMapId;if(String(formId)!==String(m.id)){fillMapForm(m);$('mapNumber').dataset.loadedMapId=String(m.id);}else renderSequenceEditor();}else{$('mapNumber').dataset.loadedMapId='';if(!$('mapParty').options.length)fillMapForm(null);}
-  const warnings=mediaMismatches.filter(w=>!selectedMapId||String(w.mapId)===String(selectedMapId));if(warnings.length){const text=warnings.slice(0,5).map(w=>`${w.date} • bloco ${w.block}: ${w.registered} spot(s) x ${w.official} ocorrência(s) oficiais`).join(' | ');setMessage(mediaMessage,`⚠️ Divergências encontradas: ${text}${warnings.length>5?' …':''}`,'warn');}else if(mediaMaps.length)setMessage(mediaMessage,'','info');
+  const warnings=mediaMismatches.filter(w=>!selectedMapId||(w.mapIds||[]).includes(String(selectedMapId)));if(warnings.length){const text=warnings.slice(0,5).map(w=>`${w.date} • bloco ${w.block}: soma dos mapas ${w.registered} x oficial ${w.official}`).join(' | ');setMessage(mediaMessage,`⚠️ Divergências encontradas: ${text}${warnings.length>5?' …':''}`,'warn');}else if(mediaMaps.length)setMessage(mediaMessage,'','info');
 }
 function newMap(){ selectedMapId=null;$('mapNumber').dataset.loadedMapId='';fillMapForm(null);renderMapList();setMessage(mediaMessage,'Novo mapa: preencha os dados e clique em “Salvar mapa”.','info'); }
 async function saveMap(){
-  const cargo=$('mapCargo').value,party=$('mapParty').value,number=$('mapNumber').value.trim(),title=$('mapTitle').value.trim(),start=$('mapStart').value,end=$('mapEnd').value,active=$('mapActive').checked,notes=$('mapNotes').value.trim();
+  const cargo=$('mapCargo').value,party=$('mapParty').value,candidate=$('mapCandidateName').value.trim(),number=$('mapNumber').value.trim(),source=$('mapSourceFile').value.trim(),title=$('mapTitle').value.trim(),start=$('mapStart').value,end=$('mapEnd').value,active=$('mapActive').checked,notes=$('mapNotes').value.trim();
   if(!party||!number||!start||!end){setMessage(mediaMessage,'Preencha cargo, campanha, número do mapa e período.','error');return;}if(end<start){setMessage(mediaMessage,'A data final não pode ser anterior à data inicial.','error');return;}
-  setMediaBusy(true);const payload={program_party:party,cargo,map_number:number,title:title||null,start_date:start,end_date:end,active,notes:notes||null,updated_at:new Date().toISOString(),updated_by:currentWho()};let res;
+  setMediaBusy(true);const payload={program_party:party,cargo,candidate_name:candidate||null,map_number:number,source_file:source||null,title:title||null,start_date:start,end_date:end,active,notes:notes||null,updated_at:new Date().toISOString(),updated_by:currentWho()};let res;
   if(selectedMapId)res=await client.from(MAP_TABLE).update(payload).eq('id',selectedMapId).select().single();else res=await client.from(MAP_TABLE).insert({...payload,created_by:currentWho()}).select().single();setMediaBusy(false);
   if(res.error){setMessage(mediaMessage,`Não foi possível salvar o mapa: ${res.error.message}`,'error');return;}selectedMapId=res.data.id;await loadMediaData(true);fillMapForm(mediaMaps.find(m=>String(m.id)===String(selectedMapId)));$('mapNumber').dataset.loadedMapId=String(selectedMapId);setMessage(mediaMessage,'Mapa salvo e sincronizado.','ok');
 }
 async function deleteMap(){ const m=getSelectedMap();if(!m)return;if(!confirm(`Excluir o mapa ${m.map_number}? Os materiais e a ordem cadastrada também serão apagados.`))return;setMediaBusy(true);const res=await client.from(MAP_TABLE).delete().eq('id',m.id);setMediaBusy(false);if(res.error){setMessage(mediaMessage,`Não foi possível excluir: ${res.error.message}`,'error');return;}selectedMapId=null;await loadMediaData(true);newMap();setMessage(mediaMessage,'Mapa excluído.','ok'); }
 async function saveSpots(){
-  const m=getSelectedMap();if(!m){setMessage(mediaMessage,'Salve o mapa antes de cadastrar os spots.','warn');return;}const rows=[...$('spotEditor').querySelectorAll('.spot-edit-row')];const items=[];for(const row of rows){const code=row.querySelector('.spot-code').value.trim().toUpperCase(),duration=Math.max(1,Math.min(300,Number(row.querySelector('.spot-duration').value)||30)),file=row.querySelector('.spot-file').value.trim();if(code)items.push({map_id:m.id,code,duration_seconds:duration,audio_filename:file||null});}
+  const m=getSelectedMap();if(!m){setMessage(mediaMessage,'Salve o mapa antes de cadastrar os spots.','warn');return;}const rows=[...$('spotEditor').querySelectorAll('.spot-edit-row')];const items=[];for(const row of rows){const code=row.querySelector('.spot-code').value.trim().toUpperCase(),title=row.querySelector('.spot-title').value.trim(),duration=Math.max(1,Math.min(300,Number(row.querySelector('.spot-duration').value)||30)),file=row.querySelector('.spot-file').value.trim();if(code)items.push({map_id:m.id,code,title:title||null,duration_seconds:duration,audio_filename:file||null});}
   const codes=items.map(i=>i.code);if(new Set(codes).size!==codes.length){setMessage(mediaMessage,'Existem códigos de spot duplicados.','error');return;}const existing=mapSpots(m.id),toDelete=existing.filter(s=>!codes.includes(s.code));if(toDelete.some(s=>mediaSequences.some(q=>String(q.spot_id)===String(s.id)))&&!confirm('Um material removido já é usado na ordem de inserções. Removê-lo também apagará essas posições. Continuar?'))return;
   setMediaBusy(true);try{if(items.length){const up=await client.from(SPOT_TABLE).upsert(items,{onConflict:'map_id,code'});if(up.error)throw up.error;}if(toDelete.length){const del=await client.from(SPOT_TABLE).delete().in('id',toDelete.map(s=>s.id));if(del.error)throw del.error;}await loadMediaData(true);renderSpotEditor(mapSpots(m.id));renderSequenceEditor();setMessage(mediaMessage,'Materiais salvos e sincronizados.','ok');}catch(e){setMessage(mediaMessage,`Erro ao salvar materiais: ${e.message}`,'error');}finally{setMediaBusy(false);}
 }
 async function saveSequence(){
-  const m=getSelectedMap();if(!m)return;const date=$('sequenceDate').value,block=Number($('sequenceBlock').value),selects=[...$('sequenceEditor').querySelectorAll('.sequence-spot')];if(!selects.length)return;const items=selects.filter(s=>s.value).map(s=>({map_id:m.id,sequence_date:date,block,occurrence_order:Number(s.dataset.order),spot_id:Number(s.value),created_by:currentWho(),updated_at:new Date().toISOString()}));
-  if(items.length!==selects.length&&!confirm(`Você definiu ${items.length} de ${selects.length} inserções. Salvar mesmo assim? O site mostrará um alerta de divergência.`))return;
-  setMediaBusy(true);try{const del=await client.from(SEQUENCE_TABLE).delete().eq('map_id',m.id).eq('sequence_date',date).eq('block',block);if(del.error)throw del.error;if(items.length){const ins=await client.from(SEQUENCE_TABLE).insert(items);if(ins.error)throw ins.error;}await loadMediaData(true);renderSequenceEditor();setMessage(mediaMessage,`Ordem de ${isoToBr(date)}, bloco ${block}, salva em tempo real.`,'ok');}catch(e){setMessage(mediaMessage,`Não foi possível salvar a ordem: ${e.message}`,'error');}finally{setMediaBusy(false);}
+  const m=getSelectedMap();if(!m)return;const date=$('sequenceDate').value,block=Number($('sequenceBlock').value),selects=[...$('sequenceEditor').querySelectorAll('.sequence-spot')];const count=Math.max(0,Math.min(50,Number($('sequenceCount').value)||0));
+  if(selects.length!==count){renderSequenceEditor();return;}
+  const items=selects.filter(s=>s.value).map(s=>({map_id:m.id,sequence_date:date,block,occurrence_order:Number(s.dataset.order),spot_id:Number(s.value),created_by:currentWho(),updated_at:new Date().toISOString()}));
+  if(items.length!==selects.length&&!confirm(`Você definiu ${items.length} de ${selects.length} inserções deste mapa. Salvar mesmo assim?`))return;
+  setMediaBusy(true);try{const del=await client.from(SEQUENCE_TABLE).delete().eq('map_id',m.id).eq('sequence_date',date).eq('block',block);if(del.error)throw del.error;if(items.length){const ins=await client.from(SEQUENCE_TABLE).insert(items);if(ins.error)throw ins.error;}await loadMediaData(true);$('sequenceCount').dataset.context='';renderSequenceEditor();setMessage(mediaMessage,`Ordem de ${isoToBr(date)}, bloco ${block}, salva em tempo real.`,'ok');}catch(e){setMessage(mediaMessage,`Não foi possível salvar a ordem: ${e.message}`,'error');}finally{setMediaBusy(false);}
 }
 async function clearSequence(){ const m=getSelectedMap();if(!m)return;const date=$('sequenceDate').value,block=Number($('sequenceBlock').value);if(!confirm(`Limpar a ordem de ${isoToBr(date)}, bloco ${block}?`))return;setMediaBusy(true);const res=await client.from(SEQUENCE_TABLE).delete().eq('map_id',m.id).eq('sequence_date',date).eq('block',block);setMediaBusy(false);if(res.error){setMessage(mediaMessage,`Não foi possível limpar: ${res.error.message}`,'error');return;}await loadMediaData(true);renderSequenceEditor();setMessage(mediaMessage,'Ordem removida.','ok'); }
 
@@ -546,12 +644,12 @@ function resetConfig(){if(!confirm('Trocar o projeto Supabase configurado neste 
 $('resetConfigButton').addEventListener('click',resetConfig);$('changeConfig').addEventListener('click',resetConfig);
 $('tabProgramacao').addEventListener('click',()=>showView('programacao'));$('tabMapas').addEventListener('click',()=>showView('mapas'));
 dateFilter.addEventListener('change',applyFilters);viewFilter.addEventListener('change',applyFilters);blockFilter.addEventListener('change',applyFilters);cargoFilter.addEventListener('change',applyFilters);statusFilter.addEventListener('change',applyFilters);searchFilter.addEventListener('input',applyFilters);
-$('checkVisible').addEventListener('click',()=>{const ids=visibleRows.filter(r=>!checked.has(r.id)).map(r=>r.id);if(!ids.length){setMessage(appMessage,'Todas as linhas visíveis já estão marcadas.','info');return;}if(ids.length>25&&!confirm(`Marcar ${ids.length.toLocaleString('pt-BR')} linhas visíveis?`))return;runBatches(ids,true);});
-$('uncheckVisible').addEventListener('click',()=>{const ids=visibleRows.filter(r=>checked.has(r.id)).map(r=>r.id);if(!ids.length){setMessage(appMessage,'Nenhuma linha visível está marcada.','info');return;}if(ids.length>25&&!confirm(`Desmarcar ${ids.length.toLocaleString('pt-BR')} linhas visíveis?`))return;runBatches(ids,false);});
-$('clearAll').addEventListener('click',()=>{const ids=[...checked];if(!ids.length)return;if(confirm(`Apagar as ${ids.length.toLocaleString('pt-BR')} marcações compartilhadas?`))runBatches(ids,false);});
-$('nextPending').addEventListener('click',()=>{const pending=visibleRows.find(r=>!checked.has(r.id));if(!pending){alert('Não há linhas pendentes nos filtros atuais.');return;}const root=viewFilter.value==='schedule'?scheduleBody:tbody;const row=root.querySelector(`tr[data-id="${pending.id}"]`);if(row){row.scrollIntoView({behavior:'smooth',block:'center'});row.querySelector('input')?.focus();}});
+$('checkVisible').addEventListener('click',()=>{const rows=visibleRows.filter(r=>!isRowDone(r));if(!rows.length){setMessage(appMessage,'Todas as linhas visíveis já estão marcadas.','info');return;}if(rows.length>25&&!confirm(`Marcar ${rows.length.toLocaleString('pt-BR')} linhas visíveis?`))return;runRowBatches(rows,true);});
+$('uncheckVisible').addEventListener('click',()=>{const rows=visibleRows.filter(r=>isRowDone(r));if(!rows.length){setMessage(appMessage,'Nenhuma linha visível está marcada.','info');return;}if(rows.length>25&&!confirm(`Desmarcar ${rows.length.toLocaleString('pt-BR')} linhas visíveis?`))return;runRowBatches(rows,false);});
+$('clearAll').addEventListener('click',clearAllSharedChecks);
+$('nextPending').addEventListener('click',()=>{const pending=visibleRows.find(r=>!isRowDone(r));if(!pending){alert('Não há linhas pendentes nos filtros atuais.');return;}const root=viewFilter.value==='schedule'?scheduleBody:tbody;const row=root.querySelector(`tr[data-rowkey="${rowDomKey(pending)}"]`);if(row){row.scrollIntoView({behavior:'smooth',block:'center'});row.querySelector('input')?.focus();}});
 $('newMapButton').addEventListener('click',newMap);$('reloadMapsButton').addEventListener('click',()=>loadMediaData());$('saveMapButton').addEventListener('click',saveMap);$('deleteMapButton').addEventListener('click',deleteMap);$('addSpotButton').addEventListener('click',()=>addSpotEditorRow({duration_seconds:30}));$('saveSpotsButton').addEventListener('click',saveSpots);$('saveSequenceButton').addEventListener('click',saveSequence);$('clearSequenceButton').addEventListener('click',clearSequence);
-$('mapCargo').addEventListener('change',()=>refreshPartyOptions());$('mapParty').addEventListener('change',updateMapCandidateInfo);$('mapStart').addEventListener('change',()=>{if(!$('mapEnd').value||$('mapEnd').value<$('mapStart').value)$('mapEnd').value=$('mapStart').value;if(!selectedMapId)$('sequenceDate').value=$('mapStart').value;});$('sequenceDate').addEventListener('change',renderSequenceEditor);$('sequenceBlock').addEventListener('change',renderSequenceEditor);
+$('mapCargo').addEventListener('change',()=>refreshPartyOptions());$('mapParty').addEventListener('change',updateMapCandidateInfo);$('sequenceCount').addEventListener('change',renderSequenceEditor);$('mapStart').addEventListener('change',()=>{if(!$('mapEnd').value||$('mapEnd').value<$('mapStart').value)$('mapEnd').value=$('mapStart').value;if(!selectedMapId)$('sequenceDate').value=$('mapStart').value;});$('sequenceDate').addEventListener('change',renderSequenceEditor);$('sequenceBlock').addEventListener('change',renderSequenceEditor);
 
 (function initStatic(){dateFilter.value='28/08/2026';viewFilter.value='schedule';refreshPartyOptions('BRASIL PRONTO PRA MAIS -');$('mapStart').value='2026-08-28';$('mapEnd').value='2026-08-28';$('sequenceDate').value='2026-08-28';renderSpotEditor([]);applyFilters();})();
 (async function boot(){const url=localStorage.getItem(CONFIG_URL_KEY)||'',key=localStorage.getItem(CONFIG_API_KEY)||'';$('supabaseUrl').value=url;$('supabaseKey').value=key;if(!url||!key){showSetup();return;}setLive('Conectando…','wait');try{await initClient(url,key);}catch(e){showSetup();setMessage(setupMessage,`Não foi possível usar a configuração salva: ${e.message}`,'error');}})();
