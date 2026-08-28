@@ -1,0 +1,37 @@
+# Programação Eleitoral 2026 - GitHub Pages + Supabase
+
+Este pacote contém:
+- `index.html`: site pronto para GitHub Pages, com checkboxes compartilhados em tempo real.
+- `supabase_setup.sql`: cria a tabela, RLS e habilita Realtime.
+
+## 1) Criar o projeto no Supabase
+1. Crie um projeto em https://supabase.com/.
+2. Abra **SQL Editor**.
+3. Cole todo o conteúdo de `supabase_setup.sql` e clique em **Run**.
+
+## 2) Criar os dois usuários
+1. No Supabase, abra **Authentication > Users**.
+2. Crie os dois usuários que poderão usar o site, cada um com seu e-mail e senha.
+3. Não é necessário habilitar cadastro público no site.
+
+## 3) Obter URL e chave pública
+No Supabase, copie:
+- **Project URL**
+- **Publishable key** (ou a antiga **anon key**)
+
+Nunca use a `service_role` no HTML.
+
+## 4) Publicar no GitHub Pages
+1. Crie um repositório no GitHub.
+2. Envie `index.html` para a raiz do repositório.
+3. Em **Settings > Pages**, escolha **Deploy from a branch**.
+4. Selecione a branch `main` e a pasta `/ (root)`.
+5. Abra a URL publicada.
+
+## 5) Primeiro acesso em cada computador
+1. Cole o mesmo **Project URL** e a mesma **Publishable/anon key**.
+2. Entre com um dos dois usuários criados no Supabase.
+3. Pronto: marcar/desmarcar uma linha em um computador aparece no outro em tempo real.
+
+## Segurança
+O SQL habilita RLS e remove o acesso do papel `anon`. Somente usuários autenticados no seu projeto conseguem ler e alterar os checks. Se você criar outros usuários no mesmo projeto, eles também terão acesso à tabela; mantenha apenas os usuários autorizados ou torne as políticas mais restritivas.
