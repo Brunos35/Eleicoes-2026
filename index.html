@@ -25,7 +25,7 @@
   .panel h3 { margin:4px 0 10px; font-size:16px; }
   .panel p.help { margin:4px 0 14px; color:var(--muted); font-size:13px; line-height:1.45; }
   .setup-grid,.login-grid,.form-grid { display:grid; grid-template-columns:repeat(2,minmax(220px,1fr)); gap:12px; align-items:end; }
-  .filters { display:grid; grid-template-columns:repeat(6,minmax(140px,1fr)); gap:12px; align-items:end; }
+  .filters { display:grid; grid-template-columns:repeat(7,minmax(130px,1fr)); gap:12px; align-items:end; }
   label { display:block; font-size:12px; font-weight:700; color:var(--muted); margin:0 0 6px; text-transform:uppercase; letter-spacing:.04em; }
   select,input[type="search"],input[type="text"],input[type="url"],input[type="password"],input[type="email"],input[type="date"],input[type="number"],textarea { width:100%; min-height:44px; border:1px solid #cbd5e1; border-radius:9px; padding:9px 11px; background:#fff; color:var(--text); font-size:15px; outline:none; }
   textarea { min-height:76px; resize:vertical; }
@@ -74,6 +74,15 @@
   .toggle-line { display:flex; align-items:center; gap:8px; min-height:44px; } .toggle-line input { width:20px; height:20px; }
   .warning-list { margin:8px 0 0; padding-left:18px; color:var(--warn); font-size:13px; }
   .map-summary { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+  .schedule-summary { margin-top:12px; }
+  .schedule-table { min-width:1480px; }
+  .slot-header td { background:#eef3f7; border-top:2px solid #c8d3de; border-bottom:1px solid #d6dee6; padding:9px 12px; font-size:13px; font-weight:800; color:#31465a; }
+  .schedule-date-header td { background:#173f6b; color:#fff; padding:10px 12px; font-size:14px; font-weight:800; border-bottom:0; }
+  .timecell { white-space:nowrap; font-weight:800; font-variant-numeric:tabular-nums; min-width:78px; }
+  .windowcell { white-space:nowrap; color:#475569; min-width:115px; }
+  .cargo-tag { display:inline-block; border:1px solid #d5dde6; border-radius:999px; padding:4px 8px; background:#f8fafc; font-weight:700; white-space:nowrap; }
+  .schedule-note { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:10px; color:var(--muted); font-size:12px; }
+  .schedule-note b { color:var(--text); }
   .mini-pill { font-size:12px; padding:4px 8px; border-radius:999px; background:#eef2f6; color:#415264; }
   @media (max-width:1100px) { .filters { grid-template-columns:repeat(3,minmax(0,1fr)); } .map-layout { grid-template-columns:1fr; } }
   @media (max-width:800px) { .setup-grid,.login-grid,.form-grid,.filters { grid-template-columns:repeat(2,minmax(0,1fr)); } .stats { grid-template-columns:repeat(2,minmax(0,1fr)); } .wrap { padding:12px; } .save-note { width:100%; margin-left:0; } .spot-edit-row { grid-template-columns:1fr 1fr; } .sequence-toolbar { grid-template-columns:1fr 1fr; } }
@@ -126,6 +135,7 @@
     <section class="panel" id="appPanel" aria-label="Filtros e progresso">
       <div class="filters">
         <div><label for="dateFilter">Data</label><select id="dateFilter"><option value="">Todas as datas</option><option value="28/08/2026">28/08/2026</option><option value="29/08/2026">29/08/2026</option><option value="30/08/2026">30/08/2026</option><option value="31/08/2026">31/08/2026</option><option value="01/09/2026">01/09/2026</option><option value="02/09/2026">02/09/2026</option><option value="03/09/2026">03/09/2026</option><option value="04/09/2026">04/09/2026</option><option value="05/09/2026">05/09/2026</option><option value="06/09/2026">06/09/2026</option><option value="07/09/2026">07/09/2026</option><option value="08/09/2026">08/09/2026</option><option value="09/09/2026">09/09/2026</option><option value="10/09/2026">10/09/2026</option><option value="11/09/2026">11/09/2026</option><option value="12/09/2026">12/09/2026</option><option value="13/09/2026">13/09/2026</option><option value="14/09/2026">14/09/2026</option><option value="15/09/2026">15/09/2026</option><option value="16/09/2026">16/09/2026</option><option value="17/09/2026">17/09/2026</option><option value="18/09/2026">18/09/2026</option><option value="19/09/2026">19/09/2026</option><option value="20/09/2026">20/09/2026</option><option value="21/09/2026">21/09/2026</option><option value="22/09/2026">22/09/2026</option><option value="23/09/2026">23/09/2026</option><option value="24/09/2026">24/09/2026</option><option value="25/09/2026">25/09/2026</option><option value="26/09/2026">26/09/2026</option><option value="27/09/2026">27/09/2026</option><option value="28/09/2026">28/09/2026</option><option value="29/09/2026">29/09/2026</option><option value="30/09/2026">30/09/2026</option><option value="01/10/2026">01/10/2026</option></select></div>
+        <div><label for="viewFilter">Visualização</label><select id="viewFilter"><option value="schedule">Grade horária (30 min)</option><option value="official">Lista oficial</option></select></div>
         <div><label for="blockFilter">Bloco</label><select id="blockFilter"><option value="">Todos</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></div>
         <div><label for="cargoFilter">Cargo</label><select id="cargoFilter"><option value="">Todos os cargos</option><option>Governador</option><option>Senador</option><option>Deputado Federal</option><option>Deputado Distrital</option><option>Presidente</option></select></div>
         <div><label for="statusFilter">Status</label><select id="statusFilter"><option value="">Todos</option><option value="pending">Pendentes</option><option value="done">Marcadas</option></select></div>
@@ -138,11 +148,22 @@
       <div class="progress" aria-hidden="true"><div id="progressBar"></div></div>
     </section>
 
-    <section class="tablebox" id="tablePanel"><div class="table-scroll" id="tableScroll"><table>
+    <section class="panel schedule-summary" id="scheduleSummaryPanel">
+      <h2>Grade horária sugerida</h2>
+      <p class="help">A distribuição é calculada automaticamente dentro de cada bloco oficial, em janelas de 30 minutos. O sistema equilibra a quantidade de spots, mistura os cargos sempre que possível e preserva a ordem de sequência de cada cargo e dos spots cadastrados nos Mapas de Mídia.</p>
+      <div id="scheduleInfo" class="message show info" role="status"></div>
+    </section>
+
+    <section class="tablebox" id="schedulePanel"><div class="table-scroll"><table class="schedule-table">
+      <thead><tr><th class="checkcell">Feito</th><th>Horário</th><th>Janela 30 min</th><th class="num">Bloco</th><th class="num">Seq.</th><th>Partido / Federação / Coligação</th><th>Cargo</th><th>Spot</th><th>Marcado por</th><th>Quando</th></tr></thead>
+      <tbody id="scheduleBody"></tbody>
+    </table><div id="scheduleEmpty" class="empty" hidden>Nenhum spot encontrado com esses filtros.</div></div></section>
+
+    <section class="tablebox hidden" id="tablePanel"><div class="table-scroll" id="tableScroll"><table>
       <thead><tr><th class="checkcell">Feito</th><th>Data</th><th class="num">Bloco</th><th class="num">Seq.</th><th>Partido / Federação / Coligação</th><th>Cargo</th><th>Spot</th><th>Marcado por</th><th>Quando</th></tr></thead>
       <tbody id="tbody"></tbody>
     </table><div id="empty" class="empty" hidden>Nenhuma linha encontrada com esses filtros.</div></div></section>
-    <div class="foot">Fonte: relatórios “Programação por dia” - Sistema Horário Eleitoral. Total: 4.900 linhas (3.920 estaduais + 980 Presidente).</div>
+    <div class="foot">Fonte: relatórios “Programação por dia” - Sistema Horário Eleitoral. A grade horária é uma distribuição operacional sugerida; os dados oficiais de bloco, sequência, partido e cargo permanecem inalterados.</div>
   </div>
 
   <div id="mapasView" class="hidden">
@@ -211,8 +232,8 @@ const $ = (id) => document.getElementById(id);
 const setupPanel=$('setupPanel'), loginPanel=$('loginPanel'), accountPanel=$('accountPanel'), navPanel=$('navPanel');
 const programacaoView=$('programacaoView'), mapasView=$('mapasView');
 const setupForm=$('setupForm'), loginForm=$('loginForm'), setupMessage=$('setupMessage'), loginMessage=$('loginMessage'), appMessage=$('appMessage'), mediaMessage=$('mediaMessage');
-const liveDot=$('liveDot'), liveStatus=$('liveStatus'), dateFilter=$('dateFilter'), blockFilter=$('blockFilter'), cargoFilter=$('cargoFilter'), statusFilter=$('statusFilter'), searchFilter=$('searchFilter');
-const tbody=$('tbody'), empty=$('empty'), visibleCount=$('visibleCount'), doneVisible=$('doneVisible'), doneAll=$('doneAll'), percentAll=$('percentAll'), progressBar=$('progressBar'), operationNote=$('operationNote');
+const liveDot=$('liveDot'), liveStatus=$('liveStatus'), dateFilter=$('dateFilter'), viewFilter=$('viewFilter'), blockFilter=$('blockFilter'), cargoFilter=$('cargoFilter'), statusFilter=$('statusFilter'), searchFilter=$('searchFilter');
+const tbody=$('tbody'), empty=$('empty'), scheduleBody=$('scheduleBody'), scheduleEmpty=$('scheduleEmpty'), schedulePanel=$('schedulePanel'), scheduleSummaryPanel=$('scheduleSummaryPanel'), tablePanel=$('tablePanel'), scheduleInfo=$('scheduleInfo'), visibleCount=$('visibleCount'), doneVisible=$('doneVisible'), doneAll=$('doneAll'), percentAll=$('percentAll'), progressBar=$('progressBar'), operationNote=$('operationNote');
 
 let client=null, currentUser=null, channel=null, checked=new Set(), checkMeta=new Map(), visibleRows=[], busy=false;
 let mediaMaps=[], mediaSpots=[], mediaSequences=[], spotAssignments=new Map(), mediaMismatches=[];
@@ -226,6 +247,82 @@ for (const r of DATA) {
 }
 for (const rows of programIndex.values()) rows.sort((a,b)=>Number(a.seq)-Number(b.seq));
 
+
+const CARGO_ORDER = ['Presidente','Governador','Senador','Deputado Federal','Deputado Distrital'];
+const OFFICIAL_BLOCKS = {
+  '1': { start: 5*60, end: 11*60, label: '05:00–11:00' },
+  '2': { start: 11*60, end: 18*60, label: '11:00–18:00' },
+  '3': { start: 18*60, end: 24*60, label: '18:00–24:00' }
+};
+const scheduleAssignments = new Map();
+const scheduleSlotTotals = new Map();
+
+function minutesToTime(total){
+  if(total===24*60)return '24:00';
+  const h=Math.floor(total/60),m=total%60;
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+}
+function balancedCapacities(total,count){
+  if(count<=0)return[];
+  const base=Math.floor(total/count),extra=total%count,arr=Array(count).fill(base);
+  if(extra){
+    const used=new Set();
+    for(let i=0;i<extra;i++){
+      let pos=Math.floor(((i+.5)*count)/extra);
+      pos=Math.max(0,Math.min(count-1,pos));
+      while(used.has(pos)&&pos<count-1)pos++;
+      while(used.has(pos)&&pos>0)pos--;
+      used.add(pos);arr[pos]++;
+    }
+  }
+  return arr;
+}
+function cargoTieRank(cargo,slotIndex){
+  const idx=CARGO_ORDER.indexOf(cargo);
+  if(idx<0)return 100+CARGO_ORDER.length;
+  return (idx-slotIndex+CARGO_ORDER.length)%CARGO_ORDER.length;
+}
+function buildScheduleAssignments(){
+  scheduleAssignments.clear();scheduleSlotTotals.clear();
+  const dates=[...new Set(DATA.map(r=>r.date))];
+  for(const date of dates){
+    for(const block of ['1','2','3']){
+      const cfg=OFFICIAL_BLOCKS[block];
+      const rows=DATA.filter(r=>r.date===date&&String(r.block)===block);
+      if(!rows.length)continue;
+      const slotCount=Math.round((cfg.end-cfg.start)/30);
+      const capacities=balancedCapacities(rows.length,slotCount);
+      const queues=new Map();
+      for(const r of rows){if(!queues.has(r.cargo))queues.set(r.cargo,[]);queues.get(r.cargo).push(r);}
+      for(const q of queues.values())q.sort((a,b)=>Number(a.seq)-Number(b.seq)||a.id-b.id);
+      for(let slotIndex=0;slotIndex<slotCount;slotIndex++){
+        const capacity=capacities[slotIndex],picked=[],used=new Set(),slotsLeft=slotCount-slotIndex;
+        for(let pos=0;pos<capacity;pos++){
+          const available=[...queues.entries()].filter(([,q])=>q.length>0).map(([cargo,q])=>({cargo,q,remaining:q.length}));
+          if(!available.length)break;
+          let pool=available.filter(x=>!used.has(x.cargo));if(!pool.length)pool=available;
+          pool.sort((a,b)=>{
+            const ua=a.remaining/slotsLeft,ub=b.remaining/slotsLeft;
+            if(Math.abs(ub-ua)>.000001)return ub-ua;
+            if(b.remaining!==a.remaining)return b.remaining-a.remaining;
+            return cargoTieRank(a.cargo,slotIndex)-cargoTieRank(b.cargo,slotIndex)||a.cargo.localeCompare(b.cargo,'pt-BR');
+          });
+          const chosen=pool[0],row=chosen.q.shift();picked.push(row);used.add(chosen.cargo);
+        }
+        const start=cfg.start+slotIndex*30,end=start+30;
+        const slotKey=`${date}|${block}|${slotIndex}`;
+        scheduleSlotTotals.set(slotKey,picked.length);
+        for(let i=0;i<picked.length;i++){
+          const offset=Math.max(1,Math.min(29,Math.round(((i+1)*30)/(picked.length+1))));
+          const exact=start+offset;
+          scheduleAssignments.set(picked[i].id,{date,block,slotIndex,slotKey,windowStart:start,windowEnd:end,suggestedMinute:exact,suggestedTime:minutesToTime(exact),windowLabel:`${minutesToTime(start)}–${minutesToTime(end)}`,position:i+1,windowCount:picked.length});
+        }
+      }
+    }
+  }
+}
+buildScheduleAssignments();
+
 function setMessage(el,text='',kind='info'){ el.textContent=text; el.className=text?`message show ${kind}`:'message'; }
 function setLive(text,mode='wait'){ liveStatus.textContent=text; liveDot.className='dot'+(mode==='live'?' live':mode==='off'?' off':''); }
 function normalize(s){ return (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); }
@@ -235,7 +332,7 @@ function isoToBr(s){ const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s||''); return m?`
 function ordinal(n){ return `${n}ª`; }
 function td(text,cls=''){ const el=document.createElement('td'); if(cls)el.className=cls; el.textContent=text; return el; }
 function currentWho(){ return currentUser?.email || currentUser?.id || 'usuário'; }
-function setBusy(state,note=''){ busy=state; document.querySelectorAll('.sync-action').forEach(b=>b.disabled=state||!currentUser); tbody.querySelectorAll('input.check').forEach(cb=>cb.disabled=state||!currentUser); if(note)operationNote.textContent=note; else if(!state)operationNote.textContent='Alterações aparecem nos outros computadores em tempo real.'; }
+function setBusy(state,note=''){ busy=state; document.querySelectorAll('.sync-action').forEach(b=>b.disabled=state||!currentUser); document.querySelectorAll('input.check').forEach(cb=>cb.disabled=state||!currentUser); if(note)operationNote.textContent=note; else if(!state)operationNote.textContent='Alterações aparecem nos outros computadores em tempo real.'; }
 function setMediaBusy(state){ document.querySelectorAll('.media-action').forEach(b=>b.disabled=state||!currentUser); }
 
 function showView(name){
@@ -260,6 +357,12 @@ function showSetup(){
 function applyFilters(){
   const d=dateFilter.value,b=blockFilter.value,c=cargoFilter.value,s=statusFilter.value,q=normalize(searchFilter.value.trim());
   visibleRows=DATA.filter(r=>{const isDone=checked.has(r.id);return(!d||r.date===d)&&(!b||r.block===b)&&(!c||r.cargo===c)&&(!q||normalize(r.party).includes(q))&&(!s||(s==='done'?isDone:!isDone));});
+  if(viewFilter.value==='schedule')visibleRows.sort((a,b)=>{
+    const sa=scheduleAssignments.get(a.id),sb=scheduleAssignments.get(b.id);
+    if(a.date!==b.date)return brToIso(a.date).localeCompare(brToIso(b.date));
+    if(Number(a.block)!==Number(b.block))return Number(a.block)-Number(b.block);
+    return (sa?.slotIndex??999)-(sb?.slotIndex??999)||(sa?.suggestedMinute??9999)-(sb?.suggestedMinute??9999)||a.id-b.id;
+  });
   render(); updateMediaProgramWarning();
 }
 function renderSpotCell(r){
@@ -268,17 +371,50 @@ function renderSpotCell(r){
   const badge=document.createElement('span'); badge.className='spot-badge'+(a.conflict?' conflict':''); badge.textContent=a.conflict?'CONFLITO':a.code; cell.appendChild(badge);
   const sub=document.createElement('div'); sub.className='spot-order'; sub.textContent=a.conflict?`${a.maps.join(' / ')}`:`${ordinal(a.order)} inserção • mapa ${a.mapNumber||'s/n'}`; cell.appendChild(sub); return cell;
 }
-function render(){
-  const frag=document.createDocumentFragment(); tbody.textContent='';
-  for(const r of visibleRows){
-    const tr=document.createElement('tr'); tr.dataset.id=String(r.id); const isDone=checked.has(r.id); if(isDone)tr.classList.add('done');
-    const ctd=document.createElement('td'); ctd.className='checkcell'; const cb=document.createElement('input'); cb.type='checkbox'; cb.className='check'; cb.checked=isDone; cb.disabled=busy||!currentUser; cb.setAttribute('aria-label',`Marcar linha ${r.date}, bloco ${r.block}, sequência ${r.seq}, ${r.cargo}`); cb.addEventListener('change',()=>changeOne(r,cb.checked,tr,cb)); ctd.appendChild(cb); tr.appendChild(ctd);
-    tr.appendChild(td(r.date,'datecell')); tr.appendChild(td(r.block,'num')); tr.appendChild(td(r.seq,'num')); tr.appendChild(td(r.party,'party')); tr.appendChild(td(r.cargo,'cargo')); tr.appendChild(renderSpotCell(r));
-    const meta=checkMeta.get(r.id); tr.appendChild(td(isDone?(meta?.checked_by||'—'):'—','who meta-who')); tr.appendChild(td(isDone?formatWhen(meta?.checked_at):'—','when meta-when')); frag.appendChild(tr);
-  }
-  tbody.appendChild(frag); empty.hidden=visibleRows.length!==0; updateStats();
+function makeCheckCell(r,isDone){
+  const ctd=document.createElement('td');ctd.className='checkcell';const cb=document.createElement('input');cb.type='checkbox';cb.className='check';cb.checked=isDone;cb.disabled=busy||!currentUser;cb.setAttribute('aria-label',`Marcar ${r.date}, bloco ${r.block}, sequência ${r.seq}, ${r.cargo}`);cb.addEventListener('change',()=>{const tr=cb.closest('tr');changeOne(r,cb.checked,tr,cb);});ctd.appendChild(cb);return ctd;
 }
-function applyRowState(id){ const tr=tbody.querySelector(`tr[data-id="${id}"]`); if(!tr)return; const isDone=checked.has(id),meta=checkMeta.get(id); tr.classList.toggle('done',isDone); const cb=tr.querySelector('input.check'); if(cb)cb.checked=isDone; const who=tr.querySelector('.meta-who'); if(who)who.textContent=isDone?(meta?.checked_by||'—'):'—'; const when=tr.querySelector('.meta-when'); if(when)when.textContent=isDone?formatWhen(meta?.checked_at):'—'; }
+function appendMetaCells(tr,r,isDone){const meta=checkMeta.get(r.id);tr.appendChild(td(isDone?(meta?.checked_by||'—'):'—','who meta-who'));tr.appendChild(td(isDone?formatWhen(meta?.checked_at):'—','when meta-when'));}
+function renderOfficial(){
+  const frag=document.createDocumentFragment();tbody.textContent='';
+  for(const r of visibleRows){
+    const tr=document.createElement('tr');tr.dataset.id=String(r.id);const isDone=checked.has(r.id);if(isDone)tr.classList.add('done');
+    tr.appendChild(makeCheckCell(r,isDone));tr.appendChild(td(r.date,'datecell'));tr.appendChild(td(r.block,'num'));tr.appendChild(td(r.seq,'num'));tr.appendChild(td(r.party,'party'));tr.appendChild(td(r.cargo,'cargo'));tr.appendChild(renderSpotCell(r));appendMetaCells(tr,r,isDone);frag.appendChild(tr);
+  }
+  tbody.appendChild(frag);empty.hidden=visibleRows.length!==0;
+}
+function renderSchedule(){
+  const frag=document.createDocumentFragment();scheduleBody.textContent='';let lastDate='',lastSlot='';const visibleSlotCounts=new Map();for(const row of visibleRows){const sa=scheduleAssignments.get(row.id);if(sa)visibleSlotCounts.set(sa.slotKey,(visibleSlotCounts.get(sa.slotKey)||0)+1);}
+  for(const r of visibleRows){
+    const a=scheduleAssignments.get(r.id);if(!a)continue;
+    if(r.date!==lastDate){const dr=document.createElement('tr');dr.className='schedule-date-header';const dc=document.createElement('td');dc.colSpan=10;dc.textContent=r.date;dr.appendChild(dc);frag.appendChild(dr);lastDate=r.date;lastSlot='';}
+    if(a.slotKey!==lastSlot){
+      const sr=document.createElement('tr');sr.className='slot-header';const sc=document.createElement('td');sc.colSpan=10;
+      const visibleInSlot=visibleSlotCounts.get(a.slotKey)||0,total=scheduleSlotTotals.get(a.slotKey)||a.windowCount;
+      sc.textContent=`${a.windowLabel} • Bloco oficial ${r.block} • ${visibleInSlot===total?`${total} spot(s)`:`${visibleInSlot} visível(is) de ${total} spot(s)`}`;sr.appendChild(sc);frag.appendChild(sr);lastSlot=a.slotKey;
+    }
+    const tr=document.createElement('tr');tr.dataset.id=String(r.id);const isDone=checked.has(r.id);if(isDone)tr.classList.add('done');
+    tr.appendChild(makeCheckCell(r,isDone));tr.appendChild(td(a.suggestedTime,'timecell'));tr.appendChild(td(a.windowLabel,'windowcell'));tr.appendChild(td(r.block,'num'));tr.appendChild(td(r.seq,'num'));tr.appendChild(td(r.party,'party'));
+    const cargoCell=document.createElement('td');cargoCell.className='cargo';const tag=document.createElement('span');tag.className='cargo-tag';tag.textContent=r.cargo;cargoCell.appendChild(tag);tr.appendChild(cargoCell);tr.appendChild(renderSpotCell(r));appendMetaCells(tr,r,isDone);frag.appendChild(tr);
+  }
+  scheduleBody.appendChild(frag);scheduleEmpty.hidden=visibleRows.length!==0;updateScheduleInfo();
+}
+function updateScheduleInfo(){
+  if(viewFilter.value!=='schedule')return;
+  const d=dateFilter.value,b=blockFilter.value;
+  const base=DATA.filter(r=>(!d||r.date===d)&&(!b||String(r.block)===b));
+  const counts=new Map();for(const r of base){const a=scheduleAssignments.get(r.id);if(a)counts.set(a.slotKey,(counts.get(a.slotKey)||0)+1);}
+  const vals=[...counts.values()];if(!vals.length){scheduleInfo.textContent='Nenhuma inserção para o período selecionado.';return;}
+  const min=Math.min(...vals),max=Math.max(...vals),days=new Set(base.map(r=>r.date)).size;
+  scheduleInfo.textContent=`${base.length.toLocaleString('pt-BR')} spot(s) distribuídos em ${vals.length.toLocaleString('pt-BR')} janela(s) de 30 minutos${days>1?` em ${days} dias`:''}. Carga por janela: ${min===max?min:`${min} a ${max}`} spot(s). Horários exatos são sugestões espaçadas dentro de cada meia hora.`;
+}
+function render(){
+  const scheduleMode=viewFilter.value==='schedule';schedulePanel.classList.toggle('hidden',!scheduleMode);scheduleSummaryPanel.classList.toggle('hidden',!scheduleMode);tablePanel.classList.toggle('hidden',scheduleMode);
+  if(scheduleMode)renderSchedule();else renderOfficial();updateStats();
+}
+function applyRowState(id){
+  document.querySelectorAll(`tr[data-id="${id}"]`).forEach(tr=>{const isDone=checked.has(id),meta=checkMeta.get(id);tr.classList.toggle('done',isDone);const cb=tr.querySelector('input.check');if(cb)cb.checked=isDone;const who=tr.querySelector('.meta-who');if(who)who.textContent=isDone?(meta?.checked_by||'—'):'—';const when=tr.querySelector('.meta-when');if(when)when.textContent=isDone?formatWhen(meta?.checked_at):'—';});
+}
 function updateStats(){ const dv=visibleRows.reduce((n,r)=>n+(checked.has(r.id)?1:0),0); const pct=DATA.length?Math.round((checked.size/DATA.length)*1000)/10:0; visibleCount.textContent=visibleRows.length.toLocaleString('pt-BR'); doneVisible.textContent=dv.toLocaleString('pt-BR'); doneAll.textContent=checked.size.toLocaleString('pt-BR'); percentAll.textContent=pct.toLocaleString('pt-BR')+'%'; progressBar.style.width=Math.min(100,pct)+'%'; }
 function updateMediaProgramWarning(){
   const box=$('mediaProgramWarning'); if(!mediaMismatches.length){setMessage(box,'','info');return;}
@@ -385,15 +521,15 @@ $('logoutButton').addEventListener('click',async()=>{if(client)await client.auth
 function resetConfig(){if(!confirm('Trocar o projeto Supabase configurado neste navegador?'))return;if(client)client.auth.signOut();localStorage.removeItem(CONFIG_URL_KEY);localStorage.removeItem(CONFIG_API_KEY);client=null;showSetup();}
 $('resetConfigButton').addEventListener('click',resetConfig);$('changeConfig').addEventListener('click',resetConfig);
 $('tabProgramacao').addEventListener('click',()=>showView('programacao'));$('tabMapas').addEventListener('click',()=>showView('mapas'));
-dateFilter.addEventListener('change',applyFilters);blockFilter.addEventListener('change',applyFilters);cargoFilter.addEventListener('change',applyFilters);statusFilter.addEventListener('change',applyFilters);searchFilter.addEventListener('input',applyFilters);
+dateFilter.addEventListener('change',applyFilters);viewFilter.addEventListener('change',applyFilters);blockFilter.addEventListener('change',applyFilters);cargoFilter.addEventListener('change',applyFilters);statusFilter.addEventListener('change',applyFilters);searchFilter.addEventListener('input',applyFilters);
 $('checkVisible').addEventListener('click',()=>{const ids=visibleRows.filter(r=>!checked.has(r.id)).map(r=>r.id);if(!ids.length){setMessage(appMessage,'Todas as linhas visíveis já estão marcadas.','info');return;}if(ids.length>25&&!confirm(`Marcar ${ids.length.toLocaleString('pt-BR')} linhas visíveis?`))return;runBatches(ids,true);});
 $('uncheckVisible').addEventListener('click',()=>{const ids=visibleRows.filter(r=>checked.has(r.id)).map(r=>r.id);if(!ids.length){setMessage(appMessage,'Nenhuma linha visível está marcada.','info');return;}if(ids.length>25&&!confirm(`Desmarcar ${ids.length.toLocaleString('pt-BR')} linhas visíveis?`))return;runBatches(ids,false);});
 $('clearAll').addEventListener('click',()=>{const ids=[...checked];if(!ids.length)return;if(confirm(`Apagar as ${ids.length.toLocaleString('pt-BR')} marcações compartilhadas?`))runBatches(ids,false);});
-$('nextPending').addEventListener('click',()=>{const pending=visibleRows.find(r=>!checked.has(r.id));if(!pending){alert('Não há linhas pendentes nos filtros atuais.');return;}const row=tbody.querySelector(`tr[data-id="${pending.id}"]`);if(row){row.scrollIntoView({behavior:'smooth',block:'center'});row.querySelector('input').focus();}});
+$('nextPending').addEventListener('click',()=>{const pending=visibleRows.find(r=>!checked.has(r.id));if(!pending){alert('Não há linhas pendentes nos filtros atuais.');return;}const root=viewFilter.value==='schedule'?scheduleBody:tbody;const row=root.querySelector(`tr[data-id="${pending.id}"]`);if(row){row.scrollIntoView({behavior:'smooth',block:'center'});row.querySelector('input')?.focus();}});
 $('newMapButton').addEventListener('click',newMap);$('reloadMapsButton').addEventListener('click',()=>loadMediaData());$('saveMapButton').addEventListener('click',saveMap);$('deleteMapButton').addEventListener('click',deleteMap);$('addSpotButton').addEventListener('click',()=>addSpotEditorRow({duration_seconds:30}));$('saveSpotsButton').addEventListener('click',saveSpots);$('saveSequenceButton').addEventListener('click',saveSequence);$('clearSequenceButton').addEventListener('click',clearSequence);
 $('mapCargo').addEventListener('change',()=>refreshPartyOptions());$('mapStart').addEventListener('change',()=>{if(!$('mapEnd').value||$('mapEnd').value<$('mapStart').value)$('mapEnd').value=$('mapStart').value;if(!selectedMapId)$('sequenceDate').value=$('mapStart').value;});$('sequenceDate').addEventListener('change',renderSequenceEditor);$('sequenceBlock').addEventListener('change',renderSequenceEditor);
 
-(function initStatic(){dateFilter.value='28/08/2026';refreshPartyOptions('BRASIL PRONTO PRA MAIS -');$('mapStart').value='2026-08-28';$('mapEnd').value='2026-08-28';$('sequenceDate').value='2026-08-28';renderSpotEditor([]);applyFilters();})();
+(function initStatic(){dateFilter.value='28/08/2026';viewFilter.value='schedule';refreshPartyOptions('BRASIL PRONTO PRA MAIS -');$('mapStart').value='2026-08-28';$('mapEnd').value='2026-08-28';$('sequenceDate').value='2026-08-28';renderSpotEditor([]);applyFilters();})();
 (async function boot(){const url=localStorage.getItem(CONFIG_URL_KEY)||'',key=localStorage.getItem(CONFIG_API_KEY)||'';$('supabaseUrl').value=url;$('supabaseKey').value=key;if(!url||!key){showSetup();return;}setLive('Conectando…','wait');try{await initClient(url,key);}catch(e){showSetup();setMessage(setupMessage,`Não foi possível usar a configuração salva: ${e.message}`,'error');}})();
 </script>
 </body>
