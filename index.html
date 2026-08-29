@@ -175,20 +175,9 @@
     </section>
 
     <section class="panel schedule-summary" id="scheduleSummaryPanel">
-      <div class="schedule-heading-row"><h2>Grade horária sugerida</h2><button type="button" id="editBlockTimesButton" title="Editar horários dos blocos">✎ Editar horários</button></div>
-      <p class="help">A distribuição é calculada automaticamente dentro de cada bloco oficial, em janelas de 30 minutos. Cada inserção usa somente marcas de meia hora (ex.: 05:00, 05:30, 06:00). O sistema equilibra a quantidade de spots, mistura os cargos sempre que possível e preserva a ordem de sequência de cada cargo e dos spots cadastrados nos Mapas de Mídia.</p>
+      <div class="schedule-heading-row"><h2>Grade horária sugerida</h2><span class="mini-pill">Blocos oficiais fixos</span></div>
+      <p class="help">A distribuição é calculada dentro das faixas oficiais fixas: <strong>Bloco 1: 05:00–11:00</strong>, <strong>Bloco 2: 11:00–18:00</strong> e <strong>Bloco 3: 18:00–24:00</strong>. Essas faixas não podem ser alteradas. Para adaptar a grade da rádio, use o ícone <strong>✎</strong> ao lado de uma janela de 30 minutos (ex.: 07:00–07:30) para mover todas as inserções daquela janela, ou o <strong>✎</strong> ao lado de uma inserção para alterar somente ela. Os horários continuam usando apenas :00 ou :30.</p>
       <div id="scheduleInfo" class="message show info" role="status"></div>
-      <div id="scheduleTimeEditor" class="section-card hidden">
-        <h3>Horários operacionais dos blocos</h3>
-        <p class="help">Estes horários controlam apenas a grade operacional do site; não alteram a classificação oficial dos blocos. As alterações ficam compartilhadas entre os usuários.</p>
-        <div class="block-time-grid">
-          <div class="block-time-card"><strong>Bloco 1</strong><div class="block-time-fields"><div><label for="block1Start">Início</label><select id="block1Start"></select></div><div><label for="block1End">Fim</label><select id="block1End"></select></div></div></div>
-          <div class="block-time-card"><strong>Bloco 2</strong><div class="block-time-fields"><div><label for="block2Start">Início</label><select id="block2Start"></select></div><div><label for="block2End">Fim</label><select id="block2End"></select></div></div></div>
-          <div class="block-time-card"><strong>Bloco 3</strong><div class="block-time-fields"><div><label for="block3Start">Início</label><select id="block3Start"></select></div><div><label for="block3End">Fim</label><select id="block3End"></select></div></div></div>
-        </div>
-        <div class="actions"><button type="button" class="success" id="saveBlockTimesButton">Salvar horários dos blocos</button><button type="button" id="resetBlockTimesButton">Restaurar padrão 05h/11h/18h/24h</button><span class="save-note">Para editar uma inserção individual, use o ícone ✎ ao lado do horário dela.</span></div>
-        <div id="scheduleTimeMessage" class="message" role="status"></div>
-      </div>
     </section>
 
     <section class="tablebox" id="schedulePanel"><div class="table-scroll"><table class="schedule-table">
@@ -336,7 +325,7 @@ const liveDot=$('liveDot'), liveStatus=$('liveStatus'), dateFilter=$('dateFilter
 const tbody=$('tbody'), empty=$('empty'), scheduleBody=$('scheduleBody'), scheduleEmpty=$('scheduleEmpty'), schedulePanel=$('schedulePanel'), scheduleSummaryPanel=$('scheduleSummaryPanel'), tablePanel=$('tablePanel'), scheduleInfo=$('scheduleInfo'), visibleCount=$('visibleCount'), doneVisible=$('doneVisible'), doneAll=$('doneAll'), percentAll=$('percentAll'), progressBar=$('progressBar'), operationNote=$('operationNote');
 const reportDateFilter=$('reportDateFilter'), reportViewFilter=$('reportViewFilter'), reportBlockFilter=$('reportBlockFilter'), reportCargoFilter=$('reportCargoFilter'), reportStatusFilter=$('reportStatusFilter'), reportSearchFilter=$('reportSearchFilter');
 const reportBody=$('reportBody'), reportEmpty=$('reportEmpty'), reportMessage=$('reportMessage'), reportTotal=$('reportTotal'), reportDone=$('reportDone'), reportPending=$('reportPending'), reportMissing=$('reportMissing'), reportSummary=$('reportSummary');
-const scheduleTimeEditor=$('scheduleTimeEditor'), scheduleTimeMessage=$('scheduleTimeMessage');
+const scheduleTimeEditor=null, scheduleTimeMessage=null;
 
 let client=null, currentUser=null, channel=null, checked=new Set(), checkMeta=new Map(), checkedMedia=new Set(), mediaCheckMeta=new Map(), visibleRows=[], busy=false;
 let mediaMaps=[], mediaSpots=[], mediaSequences=[], spotAssignments=new Map(), mediaMismatches=[], operationalRows=[];
@@ -361,9 +350,8 @@ const DEFAULT_BLOCKS = {
   '3': { start: 18*60, end: 24*60 }
 };
 function getBlockConfig(block){
-  const key=String(block),saved=blockTimeSettings.get(key),base=DEFAULT_BLOCKS[key];
-  const start=Number(saved?.start_minutes ?? base.start),end=Number(saved?.end_minutes ?? base.end);
-  return {start,end,label:`${minutesToTime(start)}–${minutesToTime(end)}`};
+  const key=String(block),base=DEFAULT_BLOCKS[key];
+  return {start:base.start,end:base.end,label:`${minutesToTime(base.start)}–${minutesToTime(base.end)}`};
 }
 const scheduleAssignments = new Map();
 const scheduleSlotTotals = new Map();
@@ -576,25 +564,34 @@ function makeScheduleTimeCell(r,a){
 function parseHalfHourTime(value,allow24=false){
   const m=/^(\d{2}):(00|30)$/.exec((value||'').trim());if(!m)return null;const h=Number(m[1]),min=Number(m[2]);if(h===24&&min===0&&allow24)return 1440;if(h<0||h>23)return null;return h*60+min;
 }
-function populateTimeSelect(select,allow24=false){
-  if(!select||select.options.length)return;const max=allow24?1440:1410;for(let m=0;m<=max;m+=30){const o=document.createElement('option');o.value=String(m);o.textContent=minutesToTime(m);select.appendChild(o);}
+async function editScheduleWindow(r,a){
+  if(!client||!currentUser||!scheduleSettingsAvailable){setMessage(appMessage,'Execute primeiro o SQL de horários compartilhados no Supabase.','warn');return;}
+  const source=operationalRows.length?operationalRows:DATA;
+  const rows=source.filter(row=>row.date===r.date&&String(row.block)===String(r.block)&&scheduleAssignments.get(rowDomKey(row))?.slotKey===a.slotKey);
+  if(!rows.length){setMessage(appMessage,'Não encontrei inserções nesta janela de 30 minutos.','warn');return;}
+  const cfg=getBlockConfig(r.block),current=a.windowStart;
+  const entered=prompt(`Editar a janela ${a.windowLabel} de ${r.date}.
+Novo início da janela (HH:00 ou HH:30).
+Todas as ${rows.length} inserção(ões) desta janela serão movidas juntas.
+Faixa oficial fixa do Bloco ${r.block}: ${minutesToTime(cfg.start)}–${minutesToTime(cfg.end)}.
+Deixe em branco para restaurar o horário automático das inserções desta janela.`,minutesToTime(current));
+  if(entered===null)return;
+  const value=entered.trim(),keys=rows.map(row=>rowDomKey(row));
+  if(!value){
+    const del=await client.from(TIME_OVERRIDE_TABLE).delete().in('row_key',keys);
+    if(del.error){setMessage(appMessage,`Não foi possível restaurar a janela: ${del.error.message}`,'error');return;}
+    await loadScheduleTimeSettings(true);setMessage(appMessage,`Janela ${a.windowLabel} restaurada para a distribuição automática.`,'ok');return;
+  }
+  const minute=parseHalfHourTime(value,false);
+  if(minute===null){setMessage(appMessage,'Horário inválido. Use HH:00 ou HH:30, por exemplo 07:00 ou 07:30.','error');return;}
+  if(minute<cfg.start||minute+30>cfg.end){setMessage(appMessage,`A janela de 30 minutos precisa permanecer dentro do Bloco ${r.block}, que é fixo em ${minutesToTime(cfg.start)}–${minutesToTime(cfg.end)}.`,'error');return;}
+  const now=new Date().toISOString(),who=currentWho();
+  const payloads=rows.map(row=>({row_key:rowDomKey(row),program_date:brToIso(row.date),block:Number(row.block),scheduled_minutes:minute,updated_at:now,updated_by:who}));
+  const res=await client.from(TIME_OVERRIDE_TABLE).upsert(payloads,{onConflict:'row_key'});
+  if(res.error){setMessage(appMessage,`Não foi possível alterar a janela: ${res.error.message}`,'error');return;}
+  await loadScheduleTimeSettings(true);setMessage(appMessage,`Janela movida para ${minutesToTime(minute)}–${minutesToTime(minute+30)} e sincronizada para os outros usuários.`,'ok');
 }
-function refreshBlockTimeEditor(){
-  for(const block of ['1','2','3']){const cfg=getBlockConfig(block),start=$(`block${block}Start`),end=$(`block${block}End`);if(start)start.value=String(cfg.start);if(end)end.value=String(cfg.end);}
-}
-function openBlockTimeEditor(block='1'){
-  scheduleTimeEditor.classList.remove('hidden');refreshBlockTimeEditor();const target=$(`block${block}Start`);setTimeout(()=>{target?.focus();scheduleTimeEditor.scrollIntoView({behavior:'smooth',block:'nearest'});},0);
-}
-async function saveBlockTimes(){
-  if(!client||!currentUser||!scheduleSettingsAvailable){setMessage(scheduleTimeMessage,'Execute primeiro o SQL de horários compartilhados no Supabase.','warn');return;}
-  const configs={};for(const block of ['1','2','3']){configs[block]={start:Number($(`block${block}Start`).value),end:Number($(`block${block}End`).value)};const c=configs[block];if(!Number.isInteger(c.start)||!Number.isInteger(c.end)||c.start%30||c.end%30||c.start<0||c.end>1440||c.start>=c.end){setMessage(scheduleTimeMessage,`Confira os horários do bloco ${block}. Use intervalos de 30 minutos e mantenha o início antes do fim.`,'error');return;}}
-  if(configs['1'].end>configs['2'].start||configs['2'].end>configs['3'].start){setMessage(scheduleTimeMessage,'Os blocos não podem se sobrepor. Ajuste os horários de início e fim.','error');return;}
-  const now=new Date().toISOString(),who=currentWho(),items=['1','2','3'].map(block=>({block:Number(block),start_minutes:configs[block].start,end_minutes:configs[block].end,updated_at:now,updated_by:who}));
-  setMessage(scheduleTimeMessage,'Salvando horários…','info');const res=await client.from(BLOCK_TIME_TABLE).upsert(items,{onConflict:'block'});if(res.error){setMessage(scheduleTimeMessage,`Não foi possível salvar: ${res.error.message}`,'error');return;}await loadScheduleTimeSettings(true);setMessage(scheduleTimeMessage,'Horários dos blocos salvos e sincronizados.','ok');
-}
-async function resetBlockTimes(){
-  if(!client||!currentUser||!scheduleSettingsAvailable)return;if(!confirm('Restaurar os horários operacionais padrão dos três blocos?'))return;const res=await client.from(BLOCK_TIME_TABLE).delete().gte('block',1);if(res.error){setMessage(scheduleTimeMessage,`Não foi possível restaurar: ${res.error.message}`,'error');return;}await loadScheduleTimeSettings(true);setMessage(scheduleTimeMessage,'Horários padrão restaurados: 05:00–11:00, 11:00–18:00 e 18:00–24:00.','ok');
-}
+
 async function editInsertionTime(r,a){
   if(!client||!currentUser||!scheduleSettingsAvailable){setMessage(appMessage,'Execute primeiro o SQL de horários compartilhados no Supabase.','warn');return;}
   const current=a?.suggestedTime||minutesToTime(getBlockConfig(r.block).start),entered=prompt(`Novo horário para esta inserção (${r.cargo} – ${r.party}).\nUse somente :00 ou :30.\nDeixe em branco para voltar ao horário automático.`,current);if(entered===null)return;const rowKey=rowDomKey(r),value=entered.trim();
@@ -619,7 +616,7 @@ function renderSchedule(){
     if(a.slotKey!==lastSlot){
       const sr=document.createElement('tr');sr.className='slot-header';const sc=document.createElement('td');sc.colSpan=11;
       const visibleInSlot=visibleSlotCounts.get(a.slotKey)||0,total=scheduleSlotTotals.get(a.slotKey)||a.windowCount;
-      const label=document.createElement('span');label.textContent=`${a.windowLabel} • Bloco oficial ${r.block} • ${visibleInSlot===total?`${total} spot(s)`:`${visibleInSlot} visível(is) de ${total} spot(s)`}`;sc.appendChild(label);const editBlock=document.createElement('button');editBlock.type='button';editBlock.className='block-edit-btn';editBlock.textContent='✎';editBlock.title=`Editar horários do bloco ${r.block}`;editBlock.setAttribute('aria-label',`Editar horários do bloco ${r.block}`);editBlock.disabled=!currentUser||!scheduleSettingsAvailable;editBlock.addEventListener('click',()=>openBlockTimeEditor(r.block));sc.appendChild(editBlock);sr.appendChild(sc);frag.appendChild(sr);lastSlot=a.slotKey;
+      const label=document.createElement('span');label.textContent=`${a.windowLabel} • Bloco oficial ${r.block} • ${visibleInSlot===total?`${total} spot(s)`:`${visibleInSlot} visível(is) de ${total} spot(s)`}`;sc.appendChild(label);const editBlock=document.createElement('button');editBlock.type='button';editBlock.className='block-edit-btn';editBlock.textContent='✎';editBlock.title=`Editar a janela ${a.windowLabel}`;editBlock.setAttribute('aria-label',`Editar a janela de 30 minutos ${a.windowLabel} de ${r.date}`);editBlock.disabled=!currentUser||!scheduleSettingsAvailable;editBlock.addEventListener('click',()=>editScheduleWindow(r,a));sc.appendChild(editBlock);sr.appendChild(sc);frag.appendChild(sr);lastSlot=a.slotKey;
     }
     const tr=document.createElement('tr');markRowDataset(tr,r);const isDone=isRowDone(r);if(isDone)tr.classList.add('done');
     tr.appendChild(makeCheckCell(r,isDone));tr.appendChild(makeScheduleTimeCell(r,a));tr.appendChild(td(a.windowLabel,'windowcell'));tr.appendChild(td(r.block,'num'));tr.appendChild(td(r.seq||'—','num'));tr.appendChild(td(r.party,'party'));tr.appendChild(td(candidateForRow(r),'candidate'));
@@ -635,7 +632,7 @@ function updateScheduleInfo(){
   const counts=new Map();for(const r of base){const a=scheduleAssignments.get(rowDomKey(r));if(a)counts.set(a.slotKey,(counts.get(a.slotKey)||0)+1);}
   const vals=[...counts.values()];if(!vals.length){scheduleInfo.textContent='Nenhuma inserção para o período selecionado.';return;}
   const min=Math.min(...vals),max=Math.max(...vals),days=new Set(base.map(r=>r.date)).size,extras=base.filter(r=>r.extraMedia).length;
-  const overrides=base.reduce((n,r)=>n+(scheduleAssignments.get(rowDomKey(r))?.overridden?1:0),0);scheduleInfo.textContent=`${base.length.toLocaleString('pt-BR')} posição(ões) operacional(is) distribuída(s) em ${vals.length.toLocaleString('pt-BR')} janela(s) de 30 minutos${days>1?` em ${days} dias`:''}. Carga por janela: ${min===max?min:`${min} a ${max}`} spot(s).${extras?` ${extras} inserção(ões) veio/vieram do mapa de mídia sem linha oficial 1:1 e está(ão) destacada(s).`:''} Todas as inserções usam horários de meia em meia hora (:00 ou :30).${overrides?` ${overrides} horário(s) foi/foram ajustado(s) manualmente.`:''}`;
+  const overrides=base.reduce((n,r)=>n+(scheduleAssignments.get(rowDomKey(r))?.overridden?1:0),0);scheduleInfo.textContent=`${base.length.toLocaleString('pt-BR')} posição(ões) operacional(is) distribuída(s) em ${vals.length.toLocaleString('pt-BR')} janela(s) de 30 minutos${days>1?` em ${days} dias`:''}. Carga por janela: ${min===max?min:`${min} a ${max}`} spot(s).${extras?` ${extras} inserção(ões) veio/vieram do mapa de mídia sem linha oficial 1:1 e está(ão) destacada(s).`:''} As faixas oficiais 05:00–11:00, 11:00–18:00 e 18:00–24:00 são fixas. Use o lápis da janela para mover o grupo inteiro ou o lápis da inserção para ajustar apenas uma linha.${overrides?` ${overrides} inserção(ões) possui(em) ajuste manual de horário.`:''}`;
 }
 function render(){
   const scheduleMode=viewFilter.value==='schedule';schedulePanel.classList.toggle('hidden',!scheduleMode);scheduleSummaryPanel.classList.toggle('hidden',!scheduleMode);tablePanel.classList.toggle('hidden',scheduleMode);
@@ -799,9 +796,9 @@ function updateMediaCheckRealtime(payload){const row=payload.eventType==='DELETE
 function scheduleMediaReload(){ clearTimeout(mediaReloadTimer); mediaReloadTimer=setTimeout(()=>loadMediaData(true),250); }
 function scheduleSettingsReload(){clearTimeout(scheduleSettingsReloadTimer);scheduleSettingsReloadTimer=setTimeout(()=>loadScheduleTimeSettings(true),200);}
 async function loadScheduleTimeSettings(silent=false){
-  if(!client)return false;const [br,or]=await Promise.all([client.from(BLOCK_TIME_TABLE).select('*').order('block'),client.from(TIME_OVERRIDE_TABLE).select('*')]);const err=br.error||or.error;
-  if(err){scheduleSettingsAvailable=false;blockTimeSettings=new Map();timeOverrides=new Map();buildScheduleAssignments();refreshBlockTimeEditor();applyFilters();if(!silent)setMessage(scheduleTimeMessage,`Editor de horários indisponível. Execute o SQL da atualização no Supabase. Detalhe: ${err.message}`,'warn');return false;}
-  scheduleSettingsAvailable=true;blockTimeSettings=new Map();for(const row of br.data||[])blockTimeSettings.set(String(row.block),row);timeOverrides=new Map();for(const row of or.data||[]){const m=Number(row.scheduled_minutes);if(row.row_key&&Number.isInteger(m))timeOverrides.set(String(row.row_key),m);}buildScheduleAssignments();refreshBlockTimeEditor();applyFilters();if(!silent)setMessage(scheduleTimeMessage,'','info');return true;
+  if(!client)return false;const or=await client.from(TIME_OVERRIDE_TABLE).select('*');const err=or.error;
+  if(err){scheduleSettingsAvailable=false;timeOverrides=new Map();buildScheduleAssignments();applyFilters();if(!silent)setMessage(appMessage,`Editor de horários indisponível. Execute o SQL da atualização no Supabase. Detalhe: ${err.message}`,'warn');return false;}
+  scheduleSettingsAvailable=true;timeOverrides=new Map();for(const row of or.data||[]){const m=Number(row.scheduled_minutes);if(row.row_key&&Number.isInteger(m))timeOverrides.set(String(row.row_key),m);}buildScheduleAssignments();applyFilters();return true;
 }
 async function subscribeRealtime(){
   if(!client||!currentUser)throw new Error('Usuário não autenticado.');
@@ -816,7 +813,6 @@ async function subscribeRealtime(){
       .on('postgres_changes',{event:'*',schema:'public',table:MAP_TABLE},scheduleMediaReload)
       .on('postgres_changes',{event:'*',schema:'public',table:SPOT_TABLE},scheduleMediaReload)
       .on('postgres_changes',{event:'*',schema:'public',table:SEQUENCE_TABLE},scheduleMediaReload)
-      .on('postgres_changes',{event:'*',schema:'public',table:BLOCK_TIME_TABLE},scheduleSettingsReload)
       .on('postgres_changes',{event:'*',schema:'public',table:TIME_OVERRIDE_TABLE},scheduleSettingsReload)
       .subscribe(status=>{
         if(status==='SUBSCRIBED'){
@@ -988,7 +984,7 @@ $('copyProgramFilters').addEventListener('click',syncReportFiltersFromProgram);$
 $('checkVisible').addEventListener('click',()=>{const rows=visibleRows.filter(r=>!isRowDone(r));if(!rows.length){setMessage(appMessage,'Todas as linhas visíveis já estão marcadas.','info');return;}if(rows.length>25&&!confirm(`Marcar ${rows.length.toLocaleString('pt-BR')} linhas visíveis?`))return;runRowBatches(rows,true);});
 $('uncheckVisible').addEventListener('click',()=>{const rows=visibleRows.filter(r=>isRowDone(r));if(!rows.length){setMessage(appMessage,'Nenhuma linha visível está marcada.','info');return;}if(rows.length>25&&!confirm(`Desmarcar ${rows.length.toLocaleString('pt-BR')} linhas visíveis?`))return;runRowBatches(rows,false);});
 $('clearAll').addEventListener('click',clearAllSharedChecks);
-$('editBlockTimesButton').addEventListener('click',()=>{scheduleTimeEditor.classList.toggle('hidden');if(!scheduleTimeEditor.classList.contains('hidden'))refreshBlockTimeEditor();});$('saveBlockTimesButton').addEventListener('click',saveBlockTimes);$('resetBlockTimesButton').addEventListener('click',resetBlockTimes);
+
 $('nextPending').addEventListener('click',()=>{const pending=visibleRows.find(r=>!isRowDone(r));if(!pending){alert('Não há linhas pendentes nos filtros atuais.');return;}const root=viewFilter.value==='schedule'?scheduleBody:tbody;const row=root.querySelector(`tr[data-rowkey="${rowDomKey(pending)}"]`);if(row){row.scrollIntoView({behavior:'smooth',block:'center'});row.querySelector('input')?.focus();}});
 $('newMapButton').addEventListener('click',newMap);$('reloadMapsButton').addEventListener('click',()=>loadMediaData());$('saveMapButton').addEventListener('click',saveMap);$('deleteMapButton').addEventListener('click',deleteMap);$('addSpotButton').addEventListener('click',()=>addSpotEditorRow({duration_seconds:30}));$('saveSpotsButton').addEventListener('click',saveSpots);$('saveSequenceButton').addEventListener('click',saveSequence);$('clearSequenceButton').addEventListener('click',clearSequence);
 $('mapCargo').addEventListener('change',()=>refreshPartyOptions());$('mapParty').addEventListener('change',updateMapCandidateInfo);$('sequenceCount').addEventListener('change',renderSequenceEditor);$('mapStart').addEventListener('change',()=>{if(!$('mapEnd').value||$('mapEnd').value<$('mapStart').value)$('mapEnd').value=$('mapStart').value;if(!selectedMapId)$('sequenceDate').value=$('mapStart').value;});$('sequenceDate').addEventListener('change',renderSequenceEditor);$('sequenceBlock').addEventListener('change',renderSequenceEditor);
@@ -1003,7 +999,7 @@ document.addEventListener('visibilitychange',()=>{
 });
 
 (function initStatic(){
-  for(const block of ['1','2','3']){populateTimeSelect($(`block${block}Start`),false);populateTimeSelect($(`block${block}End`),true);}refreshBlockTimeEditor();
+
   dateFilter.value='28/08/2026';viewFilter.value='schedule';
   for(const opt of [...dateFilter.options].slice(1)){const o=document.createElement('option');o.value=opt.value;o.textContent=opt.textContent;reportDateFilter.appendChild(o);}
   reportDateFilter.value='28/08/2026';reportViewFilter.value='schedule';
