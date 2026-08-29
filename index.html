@@ -176,7 +176,7 @@
 
     <section class="panel schedule-summary" id="scheduleSummaryPanel">
       <div class="schedule-heading-row"><h2>Grade horária sugerida</h2><span class="mini-pill">Blocos oficiais fixos</span></div>
-      <p class="help">A distribuição é calculada dentro das faixas oficiais fixas: <strong>Bloco 1: 05:00–11:00</strong>, <strong>Bloco 2: 11:00–18:00</strong> e <strong>Bloco 3: 18:00–24:00</strong>. Essas faixas não podem ser alteradas. Para adaptar a grade da rádio, use o ícone <strong>✎</strong> ao lado de uma janela de 30 minutos (ex.: 07:00–07:30) para mover todas as inserções daquela janela, ou o <strong>✎</strong> ao lado de uma inserção para alterar somente ela. Os horários continuam usando apenas :00 ou :30.</p>
+      <p class="help">A distribuição é calculada dentro das faixas oficiais fixas: <strong>Bloco 1: 05:00–11:00</strong>, <strong>Bloco 2: 11:00–18:00</strong> e <strong>Bloco 3: 18:00–24:00</strong>. Essas faixas não podem ser alteradas. Para adaptar a grade da rádio, use o ícone <strong>✎</strong> ao lado de uma janela de 30 minutos (ex.: 07:00–07:30) para mover todas as inserções daquela janela, ou o <strong>✎</strong> ao lado de uma inserção para alterar somente ela. A distribuição automática continua usando apenas :00 ou :30. Em ajustes manuais, também são aceitos :15 e :45.</p>
       <div id="scheduleInfo" class="message show info" role="status"></div>
     </section>
 
@@ -410,7 +410,7 @@ function buildScheduleAssignments(){
           const chosen=pool[0],row=chosen.q.shift();picked.push(row);used.add(chosen.cargo);
         }
         const start=cfg.start+slotIndex*30,end=start+30;
-        const slotKey=`${date}|${block}|${slotIndex}`;
+        const slotKey=`${date}|${block}|${start}`;
         for(let i=0;i<picked.length;i++){
           const rowKey=picked[i].rowKey;
           scheduleAssignments.set(rowKey,{date,block,slotIndex,slotKey,windowStart:start,windowEnd:end,suggestedMinute:start,suggestedTime:minutesToTime(start),windowLabel:`${minutesToTime(start)}–${minutesToTime(end)}`,position:i+1,windowCount:picked.length,overridden:false});
@@ -421,9 +421,9 @@ function buildScheduleAssignments(){
   for(const [rowKey,minute] of timeOverrides.entries()){
     const a=scheduleAssignments.get(rowKey);if(!a)continue;
     const cfg=getBlockConfig(a.block),m=Number(minute);
-    if(!Number.isInteger(m)||m<cfg.start||m>=cfg.end||m%30!==0)continue;
+    if(!Number.isInteger(m)||m<cfg.start||m>=cfg.end||m%15!==0)continue;
     const slotIndex=Math.floor((m-cfg.start)/30),end=m+30;
-    Object.assign(a,{slotIndex,slotKey:`${a.date}|${a.block}|${slotIndex}`,windowStart:m,windowEnd:end,suggestedMinute:m,suggestedTime:minutesToTime(m),windowLabel:`${minutesToTime(m)}–${minutesToTime(end)}`,overridden:true});
+    Object.assign(a,{slotIndex,slotKey:`${a.date}|${a.block}|${m}`,windowStart:m,windowEnd:Math.min(end,cfg.end),suggestedMinute:m,suggestedTime:minutesToTime(m),windowLabel:`${minutesToTime(m)}–${minutesToTime(Math.min(end,cfg.end))}`,overridden:true});
   }
   scheduleSlotTotals.clear();
   for(const a of scheduleAssignments.values())scheduleSlotTotals.set(a.slotKey,(scheduleSlotTotals.get(a.slotKey)||0)+1);
@@ -562,7 +562,7 @@ function makeScheduleTimeCell(r,a){
   const edit=document.createElement('button');edit.type='button';edit.className='time-edit-btn';edit.textContent='✎';edit.title='Editar horário desta inserção';edit.setAttribute('aria-label',`Editar horário de ${r.cargo}, ${r.party}`);edit.disabled=!currentUser||!scheduleSettingsAvailable;edit.addEventListener('click',()=>editInsertionTime(r,a));wrap.appendChild(edit);cell.appendChild(wrap);return cell;
 }
 function parseHalfHourTime(value,allow24=false){
-  const m=/^(\d{2}):(00|30)$/.exec((value||'').trim());if(!m)return null;const h=Number(m[1]),min=Number(m[2]);if(h===24&&min===0&&allow24)return 1440;if(h<0||h>23)return null;return h*60+min;
+  const m=/^(\d{2}):(00|15|30|45)$/.exec((value||'').trim());if(!m)return null;const h=Number(m[1]),min=Number(m[2]);if(h===24&&min===0&&allow24)return 1440;if(h<0||h>23)return null;return h*60+min;
 }
 async function editScheduleWindow(r,a){
   if(!client||!currentUser||!scheduleSettingsAvailable){setMessage(appMessage,'Execute primeiro o SQL de horários compartilhados no Supabase.','warn');return;}
@@ -571,7 +571,7 @@ async function editScheduleWindow(r,a){
   if(!rows.length){setMessage(appMessage,'Não encontrei inserções nesta janela de 30 minutos.','warn');return;}
   const cfg=getBlockConfig(r.block),current=a.windowStart;
   const entered=prompt(`Editar a janela ${a.windowLabel} de ${r.date}.
-Novo início da janela (HH:00 ou HH:30).
+Novo início da janela (HH:00, HH:15, HH:30 ou HH:45).
 Todas as ${rows.length} inserção(ões) desta janela serão movidas juntas.
 Faixa oficial fixa do Bloco ${r.block}: ${minutesToTime(cfg.start)}–${minutesToTime(cfg.end)}.
 Deixe em branco para restaurar o horário automático das inserções desta janela.`,minutesToTime(current));
@@ -583,7 +583,7 @@ Deixe em branco para restaurar o horário automático das inserções desta jane
     await loadScheduleTimeSettings(true);setMessage(appMessage,`Janela ${a.windowLabel} restaurada para a distribuição automática.`,'ok');return;
   }
   const minute=parseHalfHourTime(value,false);
-  if(minute===null){setMessage(appMessage,'Horário inválido. Use HH:00 ou HH:30, por exemplo 07:00 ou 07:30.','error');return;}
+  if(minute===null){setMessage(appMessage,'Horário inválido. Use minutos 00, 15, 30 ou 45, por exemplo 07:00, 07:15, 07:30 ou 07:45.','error');return;}
   if(minute<cfg.start||minute+30>cfg.end){setMessage(appMessage,`A janela de 30 minutos precisa permanecer dentro do Bloco ${r.block}, que é fixo em ${minutesToTime(cfg.start)}–${minutesToTime(cfg.end)}.`,'error');return;}
   const now=new Date().toISOString(),who=currentWho();
   const payloads=rows.map(row=>({row_key:rowDomKey(row),program_date:brToIso(row.date),block:Number(row.block),scheduled_minutes:minute,updated_at:now,updated_by:who}));
@@ -594,9 +594,9 @@ Deixe em branco para restaurar o horário automático das inserções desta jane
 
 async function editInsertionTime(r,a){
   if(!client||!currentUser||!scheduleSettingsAvailable){setMessage(appMessage,'Execute primeiro o SQL de horários compartilhados no Supabase.','warn');return;}
-  const current=a?.suggestedTime||minutesToTime(getBlockConfig(r.block).start),entered=prompt(`Novo horário para esta inserção (${r.cargo} – ${r.party}).\nUse somente :00 ou :30.\nDeixe em branco para voltar ao horário automático.`,current);if(entered===null)return;const rowKey=rowDomKey(r),value=entered.trim();
+  const current=a?.suggestedTime||minutesToTime(getBlockConfig(r.block).start),entered=prompt(`Novo horário para esta inserção (${r.cargo} – ${r.party}).\nUse :00, :15, :30 ou :45.\nDeixe em branco para voltar ao horário automático.`,current);if(entered===null)return;const rowKey=rowDomKey(r),value=entered.trim();
   if(!value){const del=await client.from(TIME_OVERRIDE_TABLE).delete().eq('row_key',rowKey);if(del.error){setMessage(appMessage,`Não foi possível restaurar o horário: ${del.error.message}`,'error');return;}await loadScheduleTimeSettings(true);setMessage(appMessage,'Horário da inserção restaurado para a distribuição automática.','ok');return;}
-  const minute=parseHalfHourTime(value,false),cfg=getBlockConfig(r.block);if(minute===null){setMessage(appMessage,'Horário inválido. Use HH:00 ou HH:30, por exemplo 05:00 ou 05:30.','error');return;}if(minute<cfg.start||minute>=cfg.end){setMessage(appMessage,`O horário precisa ficar dentro do bloco ${r.block}: ${minutesToTime(cfg.start)} a ${minutesToTime(cfg.end)}.`,'error');return;}
+  const minute=parseHalfHourTime(value,false),cfg=getBlockConfig(r.block);if(minute===null){setMessage(appMessage,'Horário inválido. Use minutos 00, 15, 30 ou 45, por exemplo 05:00, 05:15, 05:30 ou 05:45.','error');return;}if(minute<cfg.start||minute>=cfg.end){setMessage(appMessage,`O horário precisa ficar dentro do bloco ${r.block}: ${minutesToTime(cfg.start)} a ${minutesToTime(cfg.end)}.`,'error');return;}
   const payload={row_key:rowKey,program_date:brToIso(r.date),block:Number(r.block),scheduled_minutes:minute,updated_at:new Date().toISOString(),updated_by:currentWho()};const res=await client.from(TIME_OVERRIDE_TABLE).upsert(payload,{onConflict:'row_key'});if(res.error){setMessage(appMessage,`Não foi possível salvar o horário: ${res.error.message}`,'error');return;}await loadScheduleTimeSettings(true);setMessage(appMessage,`Horário alterado para ${minutesToTime(minute)} e sincronizado.`,'ok');
 }
 
@@ -632,7 +632,7 @@ function updateScheduleInfo(){
   const counts=new Map();for(const r of base){const a=scheduleAssignments.get(rowDomKey(r));if(a)counts.set(a.slotKey,(counts.get(a.slotKey)||0)+1);}
   const vals=[...counts.values()];if(!vals.length){scheduleInfo.textContent='Nenhuma inserção para o período selecionado.';return;}
   const min=Math.min(...vals),max=Math.max(...vals),days=new Set(base.map(r=>r.date)).size,extras=base.filter(r=>r.extraMedia).length;
-  const overrides=base.reduce((n,r)=>n+(scheduleAssignments.get(rowDomKey(r))?.overridden?1:0),0);scheduleInfo.textContent=`${base.length.toLocaleString('pt-BR')} posição(ões) operacional(is) distribuída(s) em ${vals.length.toLocaleString('pt-BR')} janela(s) de 30 minutos${days>1?` em ${days} dias`:''}. Carga por janela: ${min===max?min:`${min} a ${max}`} spot(s).${extras?` ${extras} inserção(ões) veio/vieram do mapa de mídia sem linha oficial 1:1 e está(ão) destacada(s).`:''} As faixas oficiais 05:00–11:00, 11:00–18:00 e 18:00–24:00 são fixas. Use o lápis da janela para mover o grupo inteiro ou o lápis da inserção para ajustar apenas uma linha.${overrides?` ${overrides} inserção(ões) possui(em) ajuste manual de horário.`:''}`;
+  const overrides=base.reduce((n,r)=>n+(scheduleAssignments.get(rowDomKey(r))?.overridden?1:0),0);scheduleInfo.textContent=`${base.length.toLocaleString('pt-BR')} posição(ões) operacional(is) distribuída(s) em ${vals.length.toLocaleString('pt-BR')} janela(s) de 30 minutos${days>1?` em ${days} dias`:''}. Carga por janela: ${min===max?min:`${min} a ${max}`} spot(s).${extras?` ${extras} inserção(ões) veio/vieram do mapa de mídia sem linha oficial 1:1 e está(ão) destacada(s).`:''} As faixas oficiais 05:00–11:00, 11:00–18:00 e 18:00–24:00 são fixas. A distribuição automática permanece em :00 e :30; ajustes manuais podem usar também :15 e :45. Use o lápis da janela para mover o grupo inteiro ou o lápis da inserção para ajustar apenas uma linha.${overrides?` ${overrides} inserção(ões) possui(em) ajuste manual de horário.`:''}`;
 }
 function render(){
   const scheduleMode=viewFilter.value==='schedule';schedulePanel.classList.toggle('hidden',!scheduleMode);scheduleSummaryPanel.classList.toggle('hidden',!scheduleMode);tablePanel.classList.toggle('hidden',scheduleMode);
