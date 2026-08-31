@@ -676,7 +676,7 @@ function startRealtimeWatchdog(){
     if(!realtimeIsConnected())scheduleReconnect('verificação automática');
   },45000);
 }
-function normalize(s){ return (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); }
+function normalize(s){ return String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); }
 function formatWhen(iso){ if(!iso)return'—'; const d=new Date(iso); return Number.isNaN(d.getTime())?'—':d.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}); }
 function brToIso(s){ const m=/^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s||''); return m?`${m[3]}-${m[2]}-${m[1]}`:''; }
 function isoToBr(s){ const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s||''); return m?`${m[3]}/${m[2]}/${m[1]}`:''; }
@@ -994,7 +994,7 @@ function renderReports(){
 function syncReportFiltersFromProgram(){
   reportDateFilter.value=dateFilter.value;reportViewFilter.value=viewFilter.value;reportBlockFilter.value=blockFilter.value;reportCargoFilter.value=cargoFilter.value;reportStatusFilter.value=statusFilter.value;reportMapStatusFilter.value=mapStatusFilter.value;reportOriginFilter.value='';reportConflictFilter.value='';reportSearchFilter.value=searchFilter.value;renderReports();
 }
-function safeFilePart(s){return (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9_-]+/g,'-').replace(/^-+|-+$/g,'').toLowerCase();}
+function safeFilePart(s){return String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9_-]+/g,'-').replace(/^-+|-+$/g,'').toLowerCase();}
 function exportReportWorkbook(){
   reportRows=reportFilteredRows();if(!reportRows.length){setMessage(reportMessage,'Não há linhas para exportar com os filtros atuais.','warn');return;}if(!window.XLSX){setMessage(reportMessage,'A biblioteca de Excel não carregou. Verifique a internet e recarregue a página.','error');return;}
   const data=reportRows.map(reportRowData),ws=XLSX.utils.json_to_sheet(data);ws['!autofilter']={ref:ws['!ref']};ws['!cols']=[{wch:12},{wch:10},{wch:15},{wch:8},{wch:10},{wch:38},{wch:28},{wch:20},{wch:34},{wch:14},{wch:12},{wch:32},{wch:15},{wch:16},{wch:22},{wch:22},{wch:38},{wch:14},{wch:30},{wch:18}];
@@ -1298,7 +1298,7 @@ function updateDailyDashboard(){
 }
 
 async function openStorageAsset(bucket,path){if(!path||!client)return;const {data,error}=await client.storage.from(bucket).createSignedUrl(path,3600);if(error){setMessage(appMessage,`Não foi possível abrir o arquivo: ${error.message}`,'error');return;}window.open(data.signedUrl,'_blank','noopener');}
-function safeStorageName(name='arquivo'){return name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9._-]+/g,'_');}
+function safeStorageName(name='arquivo'){return String(name ?? 'arquivo').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9._-]+/g,'_');}
 async function uploadMapPdf(mapId,file){
   if(!file)return null;const path=`mapas/${mapId}/${Date.now()}_${safeStorageName(file.name)}`;const up=await client.storage.from(MAP_BUCKET).upload(path,file,{upsert:false,contentType:file.type||'application/pdf'});if(up.error){setMessage(mediaMessage,`Mapa salvo, mas o PDF não foi anexado: ${up.error.message}`,'error');return null;}const db=await client.from(MAP_TABLE).update({source_storage_path:path,source_file:file.name,updated_at:new Date().toISOString(),updated_by:currentWho()}).eq('id',mapId);if(db.error){setMessage(mediaMessage,`PDF enviado, mas não foi vinculado ao mapa: ${db.error.message}`,'error');return null;}return path;
 }
