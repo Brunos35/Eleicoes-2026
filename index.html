@@ -25,7 +25,7 @@
   .panel h3 { margin:4px 0 10px; font-size:16px; }
   .panel p.help { margin:4px 0 14px; color:var(--muted); font-size:13px; line-height:1.45; }
   .setup-grid,.login-grid,.form-grid { display:grid; grid-template-columns:repeat(2,minmax(220px,1fr)); gap:12px; align-items:end; }
-  .filters { display:grid; grid-template-columns:repeat(7,minmax(130px,1fr)); gap:12px; align-items:end; }
+  .filters { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; align-items:end; }
   label { display:block; font-size:12px; font-weight:700; color:var(--muted); margin:0 0 6px; text-transform:uppercase; letter-spacing:.04em; }
   select,input[type="search"],input[type="text"],input[type="url"],input[type="password"],input[type="email"],input[type="date"],input[type="number"],textarea { width:100%; min-height:44px; border:1px solid #cbd5e1; border-radius:9px; padding:9px 11px; background:#fff; color:var(--text); font-size:15px; outline:none; }
   textarea { min-height:76px; resize:vertical; }
@@ -35,7 +35,7 @@
   button.primary { background:var(--accent); color:white; border-color:var(--accent); }
   button.success { background:var(--accent2); color:white; border-color:var(--accent2); }
   button.danger { color:var(--danger); } button:disabled { opacity:.55; cursor:not-allowed; } button:hover:not(:disabled) { filter:brightness(.98); }
-  .stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-top:14px; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-top:14px; }
   .stat { background:#f8fafc; border:1px solid #e3e8ee; border-radius:10px; padding:11px 12px; }
   .stat b { display:block; font-size:19px; } .stat span { font-size:12px; color:var(--muted); }
   .progress { height:8px; background:#e6ebf0; border-radius:999px; overflow:hidden; margin-top:11px; }
@@ -105,6 +105,30 @@
   .report-status.done { background:var(--okbg); color:#175c46; }
   .report-status.pending { background:#eef4fb; color:#24496d; }
   .report-status.missing { background:var(--warnbg); color:var(--warn); }
+  .status-badge { display:inline-flex; align-items:center; border-radius:999px; padding:4px 8px; font-size:11px; font-weight:850; white-space:nowrap; }
+  .status-badge.map-received { background:#e9f6ef; color:#176447; }
+  .status-badge.map-absent { background:var(--warnbg); color:var(--warn); }
+  .status-badge.origin-map { background:#eef3f8; color:#36556f; }
+  .status-badge.origin-radio { background:#f0ecf8; color:#4b3376; }
+  .status-badge.conflict { background:var(--errorbg); color:#842b2b; }
+  .spot-actions { display:flex; flex-wrap:wrap; gap:6px; margin-top:7px; }
+  .spot-actions button { min-height:30px; padding:4px 8px; font-size:11px; }
+  .conflict-box { margin-top:7px; border:1px solid #efc2c2; background:#fff5f5; color:#7d2929; border-radius:8px; padding:7px 8px; font-size:11px; line-height:1.35; }
+  .lock-toolbar { display:flex; flex-wrap:wrap; gap:9px; align-items:center; margin-top:12px; }
+  .lock-status { font-size:12px; color:var(--muted); }
+  .lock-status.locked { color:#7b4b00; font-weight:800; }
+  .schedule-date-header .date-lock-label { margin-left:9px; display:inline-flex; padding:2px 7px; border-radius:999px; background:rgba(255,255,255,.18); font-size:11px; }
+  dialog { border:0; border-radius:14px; padding:0; width:min(620px,calc(100vw - 28px)); box-shadow:0 24px 70px rgba(20,35,50,.28); }
+  dialog::backdrop { background:rgba(17,24,39,.48); }
+  .dialog-card { padding:18px; background:#fff; }
+  .dialog-card h3 { margin:0 0 8px; }
+  .dialog-context { padding:10px 11px; background:#f7f9fb; border:1px solid #e1e7ed; border-radius:9px; margin:10px 0 14px; font-size:13px; line-height:1.4; }
+  .audit-table { min-width:1100px; }
+  .audit-summary { min-width:330px; }
+  .audit-type { white-space:nowrap; font-weight:800; }
+  .audit-actor { min-width:190px; }
+  .manual-note { color:#5b3f8c; font-size:11px; font-weight:800; margin-top:4px; }
+
   .report-toolbar { display:flex; flex-wrap:wrap; gap:9px; margin-top:14px; align-items:center; }
   .report-table { min-width:1640px; }
   .report-spot { min-width:260px; }
@@ -155,6 +179,7 @@
     <button type="button" class="tab active" id="tabProgramacao">Programação</button>
     <button type="button" class="tab" id="tabMapas">Mapas de Mídia</button>
     <button type="button" class="tab" id="tabRelatorios">Relatórios</button>
+    <button type="button" class="tab" id="tabHistorico">Histórico</button>
   </nav>
 
   <div id="programacaoView" class="hidden">
@@ -164,13 +189,14 @@
         <div><label for="viewFilter">Visualização</label><select id="viewFilter"><option value="schedule">Grade horária (30 min)</option><option value="official">Lista oficial</option></select></div>
         <div><label for="blockFilter">Bloco</label><select id="blockFilter"><option value="">Todos</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></div>
         <div><label for="cargoFilter">Cargo</label><select id="cargoFilter"><option value="">Todos os cargos</option><option>Governador</option><option>Senador</option><option>Deputado Federal</option><option>Deputado Distrital</option><option>Presidente</option></select></div>
-        <div><label for="statusFilter">Status</label><select id="statusFilter"><option value="">Todos</option><option value="pending">Pendentes</option><option value="done">Marcadas</option></select></div>
+        <div><label for="statusFilter">Programação</label><select id="statusFilter"><option value="">Todos</option><option value="pending">Pendentes</option><option value="done">Programados</option></select></div>
+        <div><label for="mapStatusFilter">Mapa de mídia</label><select id="mapStatusFilter"><option value="">Todos</option><option value="received">Recebido</option><option value="absent">Ausente</option></select></div>
         <div style="grid-column:span 2"><label for="searchFilter">Pesquisar partido / candidato / federação / coligação</label><input id="searchFilter" type="search" placeholder="Ex.: LULA, CELINA LEÃO, MICHELLE BOLSONARO, PARTIDO LIBERAL..."></div>
       </div>
       <div class="actions"><button type="button" class="primary sync-action" id="checkVisible">Marcar visíveis</button><button type="button" class="sync-action" id="uncheckVisible">Desmarcar visíveis</button><button type="button" id="nextPending">Ir para próximo pendente</button><button type="button" class="danger sync-action" id="clearAll">Limpar todos os checks</button><span class="save-note" id="operationNote">Alterações aparecem nos outros computadores em tempo real.</span></div>
       <div id="mediaProgramWarning" class="message" role="status"></div>
       <div id="appMessage" class="message" role="status"></div>
-      <div class="stats" aria-live="polite"><div class="stat"><b id="visibleCount">0</b><span>linhas visíveis</span></div><div class="stat"><b id="doneVisible">0</b><span>visíveis marcadas</span></div><div class="stat"><b id="doneAll">0</b><span>marcadas no total</span></div><div class="stat"><b id="percentAll">0%</b><span>progresso total</span></div></div>
+      <div class="stats" aria-live="polite"><div class="stat"><b id="visibleCount">0</b><span>linhas visíveis</span></div><div class="stat"><b id="doneVisible">0</b><span>visíveis programadas</span></div><div class="stat"><b id="missingVisible">0</b><span>mapas ausentes visíveis</span></div><div class="stat"><b id="conflictVisible">0</b><span>conflitos visíveis</span></div><div class="stat"><b id="doneAll">0</b><span>programadas no total</span></div><div class="stat"><b id="percentAll">0%</b><span>progresso total</span></div></div>
       <div class="progress" aria-hidden="true"><div id="progressBar"></div></div>
     </section>
 
@@ -178,6 +204,7 @@
       <div class="schedule-heading-row"><h2>Grade horária sugerida</h2><span class="mini-pill">Blocos oficiais fixos</span></div>
       <p class="help">A distribuição é calculada dentro das faixas oficiais fixas: <strong>Bloco 1: 05:00–11:00</strong>, <strong>Bloco 2: 11:00–18:00</strong> e <strong>Bloco 3: 18:00–24:00</strong>. Essas faixas não podem ser alteradas. Para adaptar a grade da rádio, use o ícone <strong>✎</strong> ao lado de uma janela de 30 minutos (ex.: 07:00–07:30) para mover todas as inserções daquela janela, ou o <strong>✎</strong> ao lado de uma inserção para alterar somente ela. A distribuição automática continua usando apenas :00 ou :30. Em ajustes manuais, também são aceitos :15 e :45.</p>
       <div id="scheduleInfo" class="message show info" role="status"></div>
+      <div class="lock-toolbar"><button type="button" id="toggleDayLock">🔒 Travar programação do dia</button><span id="dayLockStatus" class="lock-status">Selecione uma data específica para travar a grade.</span></div>
     </section>
 
     <section class="tablebox" id="schedulePanel"><div class="table-scroll"><table class="schedule-table">
@@ -248,13 +275,16 @@
   <div id="relatoriosView" class="hidden">
     <section class="panel">
       <h2>Relatórios</h2>
-      <p class="help">Consulte o andamento da programação, filtre por data, bloco, cargo, partido/candidato e situação, e gere uma planilha Excel com exatamente as linhas exibidas. <strong>Mapa de Mídia Ausente</strong> é tratado separadamente de Programado e Pendente.</p>
+      <p class="help">Consulte o andamento da programação e do recebimento dos mapas separadamente. Uma inserção pode estar <strong>Programada</strong> mesmo com <strong>Mapa de Mídia Ausente</strong>; nesse caso o spot pode ser definido manualmente pela rádio. A planilha Excel reflete exatamente os filtros desta aba.</p>
       <div class="filters">
         <div><label for="reportDateFilter">Data</label><select id="reportDateFilter"><option value="">Todas as datas</option></select></div>
         <div><label for="reportViewFilter">Visualização</label><select id="reportViewFilter"><option value="schedule">Grade horária (30 min)</option><option value="official">Lista oficial</option></select></div>
         <div><label for="reportBlockFilter">Bloco</label><select id="reportBlockFilter"><option value="">Todos</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></div>
         <div><label for="reportCargoFilter">Cargo</label><select id="reportCargoFilter"><option value="">Todos os cargos</option><option>Governador</option><option>Senador</option><option>Deputado Federal</option><option>Deputado Distrital</option><option>Presidente</option></select></div>
-        <div><label for="reportStatusFilter">Situação</label><select id="reportStatusFilter"><option value="">Todos</option><option value="done">Programados</option><option value="pending">Pendentes</option><option value="missing">Mapas de Mídia Ausentes</option></select></div>
+        <div><label for="reportStatusFilter">Programação</label><select id="reportStatusFilter"><option value="">Todos</option><option value="done">Programados</option><option value="pending">Pendentes</option></select></div>
+        <div><label for="reportMapStatusFilter">Mapa de mídia</label><select id="reportMapStatusFilter"><option value="">Todos</option><option value="received">Recebido</option><option value="absent">Ausente</option></select></div>
+        <div><label for="reportOriginFilter">Origem do spot</label><select id="reportOriginFilter"><option value="">Todas</option><option value="map">Mapa de mídia</option><option value="radio">Definido pela rádio</option><option value="none">Não informado</option></select></div>
+        <div><label for="reportConflictFilter">Conflito</label><select id="reportConflictFilter"><option value="">Todos</option><option value="yes">Com conflito</option><option value="no">Sem conflito</option></select></div>
         <div style="grid-column:span 2"><label for="reportSearchFilter">Pesquisar partido / candidato / spot</label><input id="reportSearchFilter" type="search" placeholder="Ex.: FLAVIO BOLSONARO, CELINA LEÃO, FB_001, PARTIDO LIBERAL..."></div>
       </div>
       <div class="report-toolbar">
@@ -268,16 +298,52 @@
         <div class="stat"><b id="reportDone">0</b><span>programados</span></div>
         <div class="stat"><b id="reportPending">0</b><span>pendentes</span></div>
         <div class="stat"><b id="reportMissing">0</b><span>mapas de mídia ausentes</span></div>
+        <div class="stat"><b id="reportConflicts">0</b><span>conflitos</span></div>
       </div>
       <div class="report-summary-line" id="reportSummary"></div>
     </section>
 
     <section class="tablebox"><div class="table-scroll"><table class="report-table">
-      <thead><tr><th>Data</th><th>Horário</th><th>Janela 30 min</th><th class="num">Bloco</th><th class="num">Seq.</th><th>Partido / Federação / Coligação</th><th>Candidato(s)</th><th>Cargo</th><th>Spot a programar</th><th>Código</th><th>Duração</th><th>Arquivo</th><th>Nº mapa</th><th>Situação</th><th>Marcado por</th><th>Quando</th></tr></thead>
+      <thead><tr><th>Data</th><th>Horário</th><th>Janela 30 min</th><th class="num">Bloco</th><th class="num">Seq.</th><th>Partido / Federação / Coligação</th><th>Candidato(s)</th><th>Cargo</th><th>Spot a programar</th><th>Código</th><th>Duração</th><th>Arquivo</th><th>Nº mapa</th><th>Programação</th><th>Mapa de mídia</th><th>Origem do spot</th><th>Conflito</th><th>Marcado por</th><th>Quando</th></tr></thead>
       <tbody id="reportBody"></tbody>
     </table><div id="reportEmpty" class="empty" hidden>Nenhuma linha encontrada com esses filtros.</div></div></section>
     <div class="foot">A exportação em Excel reflete os filtros aplicados nesta aba e inclui horários sugeridos quando a visualização “Grade horária” estiver selecionada.</div>
   </div>
+
+  <div id="historicoView" class="hidden">
+    <section class="panel">
+      <h2>Histórico / Auditoria</h2>
+      <p class="help">Registra as alterações feitas a partir desta atualização: programação e desmarcação de inserções, spots definidos pela rádio, conflitos resolvidos, horários, travas de dia e alterações nos mapas de mídia.</p>
+      <div class="filters">
+        <div><label for="auditDateFilter">Data da programação</label><select id="auditDateFilter"><option value="">Todas as datas</option></select></div>
+        <div><label for="auditTypeFilter">Tipo</label><select id="auditTypeFilter"><option value="">Todos</option><option value="program">Programação</option><option value="manual">Spot da rádio / conflito</option><option value="time">Horários</option><option value="lock">Trava do dia</option><option value="map">Mapas de mídia</option></select></div>
+        <div style="grid-column:span 2"><label for="auditSearchFilter">Pesquisar usuário / ação / partido / candidato</label><input id="auditSearchFilter" type="search" placeholder="Ex.: usuário@radio.com, CELINA, horário, mapa..."></div>
+      </div>
+      <div class="actions"><button type="button" id="reloadAudit">Atualizar histórico</button><button type="button" class="success" id="exportAuditXlsx">Gerar planilha do histórico (.xlsx)</button><span class="save-note" id="auditCount">0 registro(s)</span></div>
+      <div id="auditMessage" class="message" role="status"></div>
+    </section>
+    <section class="tablebox"><div class="table-scroll"><table class="audit-table">
+      <thead><tr><th>Quando</th><th>Usuário</th><th>Tipo</th><th>Data</th><th>Bloco</th><th>Resumo</th></tr></thead>
+      <tbody id="auditBody"></tbody>
+    </table><div id="auditEmpty" class="empty" hidden>Nenhum registro encontrado com esses filtros.</div></div></section>
+  </div>
+
+  <dialog id="manualSpotDialog">
+    <div class="dialog-card">
+      <h3>Definir spot pela rádio</h3>
+      <p class="help">Use quando o partido ainda não enviou a ordem do mapa de mídia. Esta escolha não transforma o mapa em “recebido”; ela registra apenas qual material a rádio decidiu programar.</p>
+      <div id="manualSpotContext" class="dialog-context"></div>
+      <div class="form-grid">
+        <div style="grid-column:1/-1"><label for="manualKnownSpot">Material já conhecido (opcional)</label><select id="manualKnownSpot"><option value="">— preencher manualmente —</option></select></div>
+        <div><label for="manualSpotCode">Código</label><input id="manualSpotCode" type="text" placeholder="Ex.: FB_001"></div>
+        <div><label for="manualSpotTitle">Nome / título</label><input id="manualSpotTitle" type="text" placeholder="Ex.: Spot 01"></div>
+        <div><label for="manualSpotDuration">Duração (s)</label><input id="manualSpotDuration" type="number" min="1" max="300" value="30"></div>
+        <div><label for="manualSpotFile">Arquivo de áudio (opcional)</label><input id="manualSpotFile" type="text" placeholder="Ex.: FB_001.mp3"></div>
+      </div>
+      <div class="actions"><button type="button" class="success" id="saveManualSpot">Salvar spot definido pela rádio</button><button type="button" class="danger" id="removeManualSpot">Remover escolha manual</button><button type="button" id="cancelManualSpot">Cancelar</button></div>
+      <div id="manualSpotMessage" class="message" role="status"></div>
+    </div>
+  </dialog>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -315,23 +381,30 @@ const SEQUENCE_TABLE = 'media_map_sequence';
 const MEDIA_CHECK_TABLE = 'media_sequence_checks';
 const BLOCK_TIME_TABLE = 'schedule_block_settings';
 const TIME_OVERRIDE_TABLE = 'schedule_time_overrides';
+const MANUAL_SPOT_TABLE = 'manual_spot_assignments';
+const DAY_LOCK_TABLE = 'schedule_day_locks';
+const LOCKED_POSITION_TABLE = 'schedule_locked_positions';
+const AUDIT_TABLE = 'programacao_audit_log';
 const BATCH_SIZE = 200;
 
 const $ = (id) => document.getElementById(id);
 const setupPanel=$('setupPanel'), loginPanel=$('loginPanel'), accountPanel=$('accountPanel'), navPanel=$('navPanel');
-const programacaoView=$('programacaoView'), mapasView=$('mapasView'), relatoriosView=$('relatoriosView');
+const programacaoView=$('programacaoView'), mapasView=$('mapasView'), relatoriosView=$('relatoriosView'), historicoView=$('historicoView');
 const setupForm=$('setupForm'), loginForm=$('loginForm'), setupMessage=$('setupMessage'), loginMessage=$('loginMessage'), appMessage=$('appMessage'), mediaMessage=$('mediaMessage');
-const liveDot=$('liveDot'), liveStatus=$('liveStatus'), dateFilter=$('dateFilter'), viewFilter=$('viewFilter'), blockFilter=$('blockFilter'), cargoFilter=$('cargoFilter'), statusFilter=$('statusFilter'), searchFilter=$('searchFilter');
-const tbody=$('tbody'), empty=$('empty'), scheduleBody=$('scheduleBody'), scheduleEmpty=$('scheduleEmpty'), schedulePanel=$('schedulePanel'), scheduleSummaryPanel=$('scheduleSummaryPanel'), tablePanel=$('tablePanel'), scheduleInfo=$('scheduleInfo'), visibleCount=$('visibleCount'), doneVisible=$('doneVisible'), doneAll=$('doneAll'), percentAll=$('percentAll'), progressBar=$('progressBar'), operationNote=$('operationNote');
-const reportDateFilter=$('reportDateFilter'), reportViewFilter=$('reportViewFilter'), reportBlockFilter=$('reportBlockFilter'), reportCargoFilter=$('reportCargoFilter'), reportStatusFilter=$('reportStatusFilter'), reportSearchFilter=$('reportSearchFilter');
-const reportBody=$('reportBody'), reportEmpty=$('reportEmpty'), reportMessage=$('reportMessage'), reportTotal=$('reportTotal'), reportDone=$('reportDone'), reportPending=$('reportPending'), reportMissing=$('reportMissing'), reportSummary=$('reportSummary');
+const liveDot=$('liveDot'), liveStatus=$('liveStatus'), dateFilter=$('dateFilter'), viewFilter=$('viewFilter'), blockFilter=$('blockFilter'), cargoFilter=$('cargoFilter'), statusFilter=$('statusFilter'), mapStatusFilter=$('mapStatusFilter'), searchFilter=$('searchFilter');
+const tbody=$('tbody'), empty=$('empty'), scheduleBody=$('scheduleBody'), scheduleEmpty=$('scheduleEmpty'), schedulePanel=$('schedulePanel'), scheduleSummaryPanel=$('scheduleSummaryPanel'), tablePanel=$('tablePanel'), scheduleInfo=$('scheduleInfo'), visibleCount=$('visibleCount'), doneVisible=$('doneVisible'), missingVisible=$('missingVisible'), conflictVisible=$('conflictVisible'), doneAll=$('doneAll'), percentAll=$('percentAll'), progressBar=$('progressBar'), operationNote=$('operationNote'), toggleDayLock=$('toggleDayLock'), dayLockStatus=$('dayLockStatus');
+const reportDateFilter=$('reportDateFilter'), reportViewFilter=$('reportViewFilter'), reportBlockFilter=$('reportBlockFilter'), reportCargoFilter=$('reportCargoFilter'), reportStatusFilter=$('reportStatusFilter'), reportMapStatusFilter=$('reportMapStatusFilter'), reportOriginFilter=$('reportOriginFilter'), reportConflictFilter=$('reportConflictFilter'), reportSearchFilter=$('reportSearchFilter');
+const reportBody=$('reportBody'), reportEmpty=$('reportEmpty'), reportMessage=$('reportMessage'), reportTotal=$('reportTotal'), reportDone=$('reportDone'), reportPending=$('reportPending'), reportMissing=$('reportMissing'), reportConflicts=$('reportConflicts'), reportSummary=$('reportSummary');
+const auditDateFilter=$('auditDateFilter'), auditTypeFilter=$('auditTypeFilter'), auditSearchFilter=$('auditSearchFilter'), auditBody=$('auditBody'), auditEmpty=$('auditEmpty'), auditMessage=$('auditMessage'), auditCount=$('auditCount');
+const manualSpotDialog=$('manualSpotDialog'), manualSpotContext=$('manualSpotContext'), manualKnownSpot=$('manualKnownSpot'), manualSpotCode=$('manualSpotCode'), manualSpotTitle=$('manualSpotTitle'), manualSpotDuration=$('manualSpotDuration'), manualSpotFile=$('manualSpotFile'), manualSpotMessage=$('manualSpotMessage');
 const scheduleTimeEditor=null, scheduleTimeMessage=null;
 
 let client=null, currentUser=null, channel=null, checked=new Set(), checkMeta=new Map(), checkedMedia=new Set(), mediaCheckMeta=new Map(), visibleRows=[], busy=false;
 let mediaMaps=[], mediaSpots=[], mediaSequences=[], spotAssignments=new Map(), mediaMismatches=[], operationalRows=[];
+let manualSpots=new Map(), manualSpotTarget=null, dayLocks=new Map(), lockedPositions=new Map(), auditRows=[];
 let selectedMapId=null, mediaReloadTimer=null, currentView='programacao', reportRows=[];
 let reconnectTimer=null, reconnectAttempts=0, reconnectInProgress=false, syncPromise=null, watchdogTimer=null;
-let blockTimeSettings=new Map(), timeOverrides=new Map(), scheduleSettingsAvailable=true, scheduleSettingsReloadTimer=null;
+let blockTimeSettings=new Map(), timeOverrides=new Map(), scheduleSettingsAvailable=true, scheduleSettingsReloadTimer=null, auxiliaryReloadTimer=null, manualSpotsAvailable=true, dayLocksAvailable=true, auditAvailable=true;
 
 const programIndex = new Map();
 for (const r of DATA) {
@@ -418,6 +491,15 @@ function buildScheduleAssignments(){
       }
     }
   }
+  // Se o dia foi travado, preserva os horários capturados mesmo que novos mapas alterem a composição da grade.
+  for(const [rowKey,pos] of lockedPositions.entries()){
+    const a=scheduleAssignments.get(rowKey);if(!a||!dayLocks.has(brToIso(a.date)))continue;
+    const cfg=getBlockConfig(a.block),m=Number(pos.scheduled_minutes);
+    if(!Number.isInteger(m)||m<cfg.start||m>=cfg.end||m%15!==0)continue;
+    const slotIndex=Math.floor((m-cfg.start)/30),end=m+30;
+    Object.assign(a,{slotIndex,slotKey:`${a.date}|${a.block}|${m}`,windowStart:m,windowEnd:Math.min(end,cfg.end),suggestedMinute:m,suggestedTime:minutesToTime(m),windowLabel:`${minutesToTime(m)}–${minutesToTime(Math.min(end,cfg.end))}`,locked:true});
+  }
+  // Ajustes manuais continuam tendo precedência sobre a trava do dia.
   for(const [rowKey,minute] of timeOverrides.entries()){
     const a=scheduleAssignments.get(rowKey);if(!a)continue;
     const cfg=getBlockConfig(a.block),m=Number(minute);
@@ -458,7 +540,7 @@ async function reconnectRealtime(reason=''){
   try{
     if(client.realtime?.connect&&!realtimeIsConnected())client.realtime.connect();
     await subscribeRealtime();
-    await Promise.all([loadChecks(),loadMediaData(true),loadMediaChecks(),loadScheduleTimeSettings(true)]);
+    await Promise.all([loadChecks(),loadMediaData(true),loadMediaChecks(),loadScheduleTimeSettings(true),loadManualSpots(true),loadDayLocks(true),loadAuditData(true)]);
     reconnectAttempts=0; setLive('Tempo real conectado','live');
     if(reason)console.info('[Realtime] reconectado:',reason);
   }catch(e){
@@ -488,6 +570,55 @@ function checkRef(r){ return r?.checkType==='media' ? {type:'media',table:MEDIA_
 function isRowDone(r){ const ref=checkRef(r); return ref.set.has(ref.id); }
 function rowCheckMeta(r){ const ref=checkRef(r); return ref.meta.get(ref.id); }
 function rowDomKey(r){ return r?.rowKey || `o${r?.id}`; }
+function mapSpotForRow(r){ return r?.spotInfo||spotAssignments.get(r?.id)||null; }
+function manualSpotForRow(r){ return manualSpots.get(rowDomKey(r))||null; }
+function manualSpotAsSpot(m){
+  if(!m)return null;
+  return {code:m.spot_code||'',title:m.spot_title||m.spot_code||'Spot definido pela rádio',duration:Number(m.duration_seconds)||30,audioFilename:m.audio_filename||'',mapNumber:'',candidateName:'',origin:'radio'};
+}
+function effectiveSpotForRow(r){ const manual=manualSpotForRow(r); return manual?manualSpotAsSpot(manual):mapSpotForRow(r); }
+function mapStatusForRow(r){ return mapSpotForRow(r)?'received':'absent'; }
+function mapStatusLabel(status){ return status==='received'?'Mapa recebido':'Mapa de Mídia Ausente'; }
+function spotOriginForRow(r){ return manualSpotForRow(r)?'radio':mapSpotForRow(r)?'map':'none'; }
+function spotOriginLabel(origin){ return origin==='radio'?'Definido pela rádio':origin==='map'?'Mapa de mídia':'Não informado'; }
+function sameSpot(a,b){
+  if(!a||!b)return false;
+  const ac=normalize(a.spot_code||a.code||''),bc=normalize(b.code||b.spot_code||'');
+  if(ac&&bc)return ac===bc;
+  const at=normalize(a.spot_title||a.title||''),bt=normalize(b.title||b.spot_title||'');
+  return !!at&&!!bt&&at===bt;
+}
+function spotConflictForRow(r){
+  const manual=manualSpotForRow(r),map=mapSpotForRow(r);if(!manual||!map||sameSpot(manual,map))return null;
+  if(Number(manual.resolved_map_spot_id||0)===Number(map.spotId||0))return null;
+  return {manual,map};
+}
+function lateMapAfterProgramming(r){
+  if(manualSpotForRow(r)||!isRowDone(r))return false;
+  const map=mapSpotForRow(r),meta=rowCheckMeta(r);if(!map||!meta?.checked_at)return false;
+  const arrived=map.sequenceCreatedAt||map.mapCreatedAt;if(!arrived)return false;
+  const a=new Date(arrived).getTime(),c=new Date(meta.checked_at).getTime();return Number.isFinite(a)&&Number.isFinite(c)&&c<a;
+}
+function isDayLockedBr(brDate){ return dayLocks.has(brToIso(brDate)); }
+function newAfterLockForRow(r){ return isDayLockedBr(r.date)&&!lockedPositions.has(rowDomKey(r))&&!!mapSpotForRow(r); }
+function auditCategory(type=''){ if(type.startsWith('PROGRAM_')||type.startsWith('BULK_')||type==='CLEAR_ALL_CHECKS')return'program';if(type.startsWith('MANUAL_')||type.startsWith('CONFLICT_'))return'manual';if(type.startsWith('TIME_')||type.startsWith('WINDOW_'))return'time';if(type.startsWith('DAY_'))return'lock';if(type.startsWith('MAP_'))return'map';return'other'; }
+function auditTypeLabel(type=''){
+  const labels={PROGRAM_SET:'Inserção programada',PROGRAM_UNSET:'Inserção desmarcada',CLEAR_ALL_CHECKS:'Todos os checks limpos',MANUAL_SPOT_SET:'Spot definido pela rádio',MANUAL_SPOT_REMOVED:'Spot manual removido',CONFLICT_KEEP_RADIO:'Conflito: mantido spot da rádio',CONFLICT_USE_MAP:'Conflito: adotado spot do mapa',TIME_SET:'Horário da inserção alterado',TIME_CLEAR:'Horário da inserção restaurado',WINDOW_TIME_SET:'Janela de horário alterada',WINDOW_TIME_CLEAR:'Janela restaurada',DAY_LOCK:'Programação do dia travada',DAY_UNLOCK:'Programação do dia destravada',MAP_CREATE:'Mapa criado',MAP_UPDATE:'Mapa atualizado',MAP_DELETE:'Mapa excluído',MAP_SPOTS_SAVE:'Materiais do mapa salvos',MAP_SEQUENCE_SAVE:'Ordem do mapa salva',MAP_SEQUENCE_CLEAR:'Ordem do mapa removida'};
+  return labels[type]||type||'Alteração';
+}
+async function auditEvent({eventType,row=null,programDate='',block=null,party='',cargo='',summary='',details={}}){
+  if(!client||!currentUser)return false;
+  const payload={event_type:eventType,row_key:row?rowDomKey(row):null,program_date:programDate||(row?brToIso(row.date):null),block:block??(row?Number(row.block):null),party:party||(row?.party||null),cargo:cargo||(row?.cargo||null),actor:currentWho(),summary:summary||auditTypeLabel(eventType),details};
+  try{const res=await client.from(AUDIT_TABLE).insert(payload);if(res.error)throw res.error;return true;}catch(e){console.warn('[Auditoria] não foi possível registrar:',e?.message||e);return false;}
+}
+async function auditProgramRows(rows,state){
+  if(!client||!currentUser||!rows.length)return;
+  const eventType=state?'PROGRAM_SET':'PROGRAM_UNSET',actor=currentWho(),now=new Date().toISOString();
+  for(let i=0;i<rows.length;i+=BATCH_SIZE){
+    const batch=rows.slice(i,i+BATCH_SIZE).map(r=>({event_type:eventType,row_key:rowDomKey(r),program_date:brToIso(r.date),block:Number(r.block),party:r.party,cargo:r.cargo,actor,summary:`${state?'Programada':'Desmarcada'}: ${candidateForRow(r)} • ${r.cargo}`,details:{spot:effectiveSpotForRow(r)?.title||effectiveSpotForRow(r)?.code||null,map_status:mapStatusForRow(r),spot_origin:spotOriginForRow(r),logged_at:now}}));
+    const res=await client.from(AUDIT_TABLE).insert(batch);if(res.error){console.warn('[Auditoria] lote não registrado:',res.error.message);break;}
+  }
+}
 function setBusy(state,note=''){ busy=state; document.querySelectorAll('.sync-action').forEach(b=>b.disabled=state||!currentUser); document.querySelectorAll('input.check').forEach(cb=>cb.disabled=state||!currentUser); if(note)operationNote.textContent=note; else if(!state)operationNote.textContent='Alterações aparecem nos outros computadores em tempo real.'; }
 function setMediaBusy(state){ document.querySelectorAll('.media-action').forEach(b=>b.disabled=state||!currentUser); }
 
@@ -496,59 +627,111 @@ function showView(name){
   programacaoView.classList.toggle('hidden',name!=='programacao');
   mapasView.classList.toggle('hidden',name!=='mapas');
   relatoriosView.classList.toggle('hidden',name!=='relatorios');
+  historicoView.classList.toggle('hidden',name!=='historico');
   $('tabProgramacao').classList.toggle('active',name==='programacao');
   $('tabMapas').classList.toggle('active',name==='mapas');
   $('tabRelatorios').classList.toggle('active',name==='relatorios');
+  $('tabHistorico').classList.toggle('active',name==='historico');
   if(name==='mapas') renderMapWorkspace();
   if(name==='relatorios') renderReports();
+  if(name==='historico') renderAudit();
 }
 function showAuthenticated(user){
   currentUser=user; setupPanel.classList.add('hidden'); loginPanel.classList.add('hidden'); accountPanel.classList.remove('hidden'); navPanel.classList.remove('hidden');
   $('userEmail').textContent=user.email||user.id; setBusy(false); setMediaBusy(false); showView(currentView);
 }
 function showLoggedOut(){
-  currentUser=null; checked.clear(); checkMeta.clear(); checkedMedia.clear(); mediaCheckMeta.clear(); mediaMaps=[]; mediaSpots=[]; mediaSequences=[]; spotAssignments.clear(); operationalRows=DATA;
-  accountPanel.classList.add('hidden'); navPanel.classList.add('hidden'); programacaoView.classList.add('hidden'); mapasView.classList.add('hidden'); relatoriosView.classList.add('hidden'); setupPanel.classList.add('hidden'); loginPanel.classList.remove('hidden'); setLive('Aguardando login','wait');
+  currentUser=null; checked.clear(); checkMeta.clear(); checkedMedia.clear(); mediaCheckMeta.clear(); mediaMaps=[]; mediaSpots=[]; mediaSequences=[]; spotAssignments.clear(); manualSpots.clear(); dayLocks.clear(); lockedPositions.clear(); auditRows=[]; operationalRows=DATA;
+  accountPanel.classList.add('hidden'); navPanel.classList.add('hidden'); programacaoView.classList.add('hidden'); mapasView.classList.add('hidden'); relatoriosView.classList.add('hidden'); historicoView.classList.add('hidden'); setupPanel.classList.add('hidden'); loginPanel.classList.remove('hidden'); setLive('Aguardando login','wait');
   clearReconnectTimer(); reconnectAttempts=0; reconnectInProgress=false;
   if(watchdogTimer){clearInterval(watchdogTimer);watchdogTimer=null;}
   if(channel&&client){client.removeChannel(channel);channel=null;}
 }
 function showSetup(){
-  currentUser=null; setupPanel.classList.remove('hidden'); loginPanel.classList.add('hidden'); accountPanel.classList.add('hidden'); navPanel.classList.add('hidden'); programacaoView.classList.add('hidden'); mapasView.classList.add('hidden'); relatoriosView.classList.add('hidden'); setLive('Supabase não configurado','off');
+  currentUser=null; setupPanel.classList.remove('hidden'); loginPanel.classList.add('hidden'); accountPanel.classList.add('hidden'); navPanel.classList.add('hidden'); programacaoView.classList.add('hidden'); mapasView.classList.add('hidden'); relatoriosView.classList.add('hidden'); historicoView.classList.add('hidden'); setLive('Supabase não configurado','off');
 }
 
 function applyFilters(){
-  const d=dateFilter.value,b=blockFilter.value,c=cargoFilter.value,s=statusFilter.value,q=normalize(searchFilter.value.trim());
+  const d=dateFilter.value,b=blockFilter.value,c=cargoFilter.value,s=statusFilter.value,ms=mapStatusFilter.value,q=normalize(searchFilter.value.trim());
   const source=viewFilter.value==='schedule'?(operationalRows.length?operationalRows:DATA):DATA;
   visibleRows=source.filter(r=>{
-    const isDone=isRowDone(r),candidate=candidateForRow(r),spot=r.spotInfo||spotAssignments.get(r.id);
-    const searchable=[r.party,candidate,spot?.code,spot?.title,spot?.audioFilename,spot?.mapNumber].map(normalize).join(' ');
-    return(!d||r.date===d)&&(!b||String(r.block)===b)&&(!c||r.cargo===c)&&(!q||searchable.includes(q))&&(!s||(s==='done'?isDone:!isDone));
+    const isDone=isRowDone(r),candidate=candidateForRow(r),spot=effectiveSpotForRow(r),mapStatus=mapStatusForRow(r),origin=spotOriginForRow(r),conflict=spotConflictForRow(r);
+    const searchable=[r.party,candidate,spot?.code,spot?.title,spot?.audioFilename,spot?.mapNumber,mapStatusLabel(mapStatus),spotOriginLabel(origin),conflict?'conflito':''].map(normalize).join(' ');
+    return(!d||r.date===d)&&(!b||String(r.block)===b)&&(!c||r.cargo===c)&&(!ms||mapStatus===ms)&&(!q||searchable.includes(q))&&(!s||(s==='done'?isDone:!isDone));
   });
   if(viewFilter.value==='schedule')visibleRows.sort((a,b)=>{
     const sa=scheduleAssignments.get(rowDomKey(a)),sb=scheduleAssignments.get(rowDomKey(b));
     if(a.date!==b.date)return brToIso(a.date).localeCompare(brToIso(b.date));
     if(Number(a.block)!==Number(b.block))return Number(a.block)-Number(b.block);
-    return (sa?.slotIndex??999)-(sb?.slotIndex??999)||(sa?.suggestedMinute??9999)-(sb?.suggestedMinute??9999)||String(rowDomKey(a)).localeCompare(String(rowDomKey(b)));
+    return (sa?.suggestedMinute??9999)-(sb?.suggestedMinute??9999)||(sa?.slotIndex??999)-(sb?.slotIndex??999)||String(rowDomKey(a)).localeCompare(String(rowDomKey(b)));
   });
-  render(); updateMediaProgramWarning();
+  render(); updateMediaProgramWarning(); updateDayLockUI();
 }
 function renderSpotCell(r){
-  const cell=document.createElement('td'); cell.className='spotcell'; const a=r.spotInfo||spotAssignments.get(r.id);
+  const cell=document.createElement('td'); cell.className='spotcell';
+  const map=mapSpotForRow(r),manual=manualSpotForRow(r),a=effectiveSpotForRow(r),mapStatus=mapStatusForRow(r),origin=spotOriginForRow(r),conflict=spotConflictForRow(r);
   if(!a){
-    const missing=document.createElement('span'); missing.className='spot-missing'; missing.textContent='MAPA DE MÍDIA AUSENTE'; cell.appendChild(missing); return cell;
+    const missing=document.createElement('span'); missing.className='spot-missing'; missing.textContent='MAPA DE MÍDIA AUSENTE'; cell.appendChild(missing);
+    const note=document.createElement('div');note.className='source-note';note.textContent='Sem ordem enviada pelo partido. A rádio pode definir o material manualmente.';cell.appendChild(note);
+    if(!r.extraMedia){const actions=document.createElement('div');actions.className='spot-actions';const define=document.createElement('button');define.type='button';define.textContent='+ Definir spot';define.disabled=!currentUser;define.addEventListener('click',()=>openManualSpotEditor(r));actions.appendChild(define);cell.appendChild(actions);}return cell;
   }
   const main=document.createElement('div'); main.className='spot-main'; main.textContent=a.title||a.code||'Spot'; cell.appendChild(main);
   const meta=document.createElement('div'); meta.className='spot-meta';
   if(a.code){const badge=document.createElement('span'); badge.className='spot-badge'; badge.textContent=`Código ${a.code}`; meta.appendChild(badge);}
   const duration=document.createElement('span'); duration.className='mini-pill'; duration.textContent=`${a.duration||30}s`; meta.appendChild(duration);
+  const mapBadge=document.createElement('span');mapBadge.className=`status-badge ${mapStatus==='received'?'map-received':'map-absent'}`;mapBadge.textContent=mapStatusLabel(mapStatus);meta.appendChild(mapBadge);
+  const originBadge=document.createElement('span');originBadge.className=`status-badge ${origin==='radio'?'origin-radio':origin==='map'?'origin-map':'map-absent'}`;originBadge.textContent=spotOriginLabel(origin);meta.appendChild(originBadge);
   cell.appendChild(meta);
-  const sub=document.createElement('div'); sub.className='spot-order';
-  const parts=[`${ordinal(a.order)} na ordem do mapa`,a.mapNumber?`mapa ${a.mapNumber}`:'mapa s/n'];
-  if(r.extraMedia)parts.push('sem linha oficial correspondente');
-  sub.textContent=parts.join(' • '); cell.appendChild(sub);
+  if(origin==='map'){
+    const sub=document.createElement('div'); sub.className='spot-order';
+    const parts=[a.order?`${ordinal(a.order)} na ordem do mapa`:'ordem do mapa',a.mapNumber?`mapa ${a.mapNumber}`:'mapa s/n'];
+    if(r.extraMedia)parts.push('sem linha oficial correspondente');sub.textContent=parts.join(' • '); cell.appendChild(sub);
+  }else if(manual){const n=document.createElement('div');n.className='manual-note';n.textContent='Escolha operacional registrada pela rádio.';cell.appendChild(n);}
   if(a.audioFilename){const f=document.createElement('div');f.className='source-note';f.textContent=`Arquivo: ${a.audioFilename}`;cell.appendChild(f);}
+  if(conflict){
+    const box=document.createElement('div');box.className='conflict-box';box.innerHTML=`<strong>⚠ Conflito com mapa recebido</strong><br>Rádio: ${escapeHtml(manual.spot_title||manual.spot_code||'Spot manual')} • Mapa: ${escapeHtml(map.title||map.code||'Spot do mapa')}`;cell.appendChild(box);
+    const actions=document.createElement('div');actions.className='spot-actions';
+    const keep=document.createElement('button');keep.type='button';keep.textContent='Manter escolha da rádio';keep.disabled=!currentUser;keep.addEventListener('click',()=>resolveConflictKeepRadio(r));
+    const use=document.createElement('button');use.type='button';use.className='success';use.textContent='Usar spot do mapa';use.disabled=!currentUser;use.addEventListener('click',()=>resolveConflictUseMap(r));
+    const edit=document.createElement('button');edit.type='button';edit.textContent='Editar spot da rádio';edit.disabled=!currentUser;edit.addEventListener('click',()=>openManualSpotEditor(r));actions.append(keep,use,edit);cell.appendChild(actions);
+  }else if(manual){
+    const actions=document.createElement('div');actions.className='spot-actions';const edit=document.createElement('button');edit.type='button';edit.textContent='✎ Editar escolha da rádio';edit.disabled=!currentUser;edit.addEventListener('click',()=>openManualSpotEditor(r));actions.appendChild(edit);cell.appendChild(actions);
+    if(map&&sameSpot(manual,map)){const aligned=document.createElement('div');aligned.className='source-note';aligned.textContent='O mapa recebido coincide com a escolha feita pela rádio.';cell.appendChild(aligned);}
+  }
+  if(lateMapAfterProgramming(r)){const late=document.createElement('div');late.className='conflict-box';late.textContent='⚠ O mapa foi cadastrado depois desta inserção ter sido marcada como programada. Como não havia spot manual registrado, confira se o material usado coincide com o mapa recebido.';cell.appendChild(late);}if(newAfterLockForRow(r)){const extra=document.createElement('div');extra.className='conflict-box';extra.textContent='⚠ Esta posição apareceu depois que a grade do dia foi travada. Os horários antigos foram preservados; confira manualmente onde esta nova inserção deve entrar.';cell.appendChild(extra);}
   return cell;
+}
+function knownManualSpotsForRow(r){
+  const mapsById=new Map(mediaMaps.map(m=>[String(m.id),m])),out=[],seen=new Set();
+  for(const sp of mediaSpots){const m=mapsById.get(String(sp.map_id));if(!m||m.cargo!==r.cargo||m.program_party!==r.party)continue;const key=`${normalize(sp.code)}|${normalize(sp.title||'')}`;if(seen.has(key))continue;seen.add(key);out.push({sp,m});}
+  out.sort((a,b)=>String(a.sp.code).localeCompare(String(b.sp.code),'pt-BR'));return out;
+}
+function openManualSpotEditor(r){
+  if(!currentUser||r.extraMedia)return;manualSpotTarget=r;const existing=manualSpotForRow(r);setMessage(manualSpotMessage,'','info');
+  manualSpotContext.textContent=`${r.date} • Bloco ${r.block} • Seq. ${r.seq||'—'} • ${candidateForRow(r)} • ${r.cargo} • ${r.party}`;
+  manualKnownSpot.innerHTML='<option value="">— preencher manualmente —</option>';const known=knownManualSpotsForRow(r);
+  known.forEach(({sp,m},idx)=>{const o=document.createElement('option');o.value=String(idx);o.textContent=`${sp.code}${sp.title&&sp.title!==sp.code?` • ${sp.title}`:''} • ${sp.duration_seconds||30}s • ${mapCandidate(m)}`;manualKnownSpot.appendChild(o);});manualKnownSpot._known=known;
+  manualSpotCode.value=existing?.spot_code||'';manualSpotTitle.value=existing?.spot_title||'';manualSpotDuration.value=existing?.duration_seconds||30;manualSpotFile.value=existing?.audio_filename||'';$('removeManualSpot').disabled=!existing;
+  if(typeof manualSpotDialog.showModal==='function')manualSpotDialog.showModal();else manualSpotDialog.setAttribute('open','');
+}
+function closeManualSpotEditor(){manualSpotTarget=null;if(manualSpotDialog.open)manualSpotDialog.close();else manualSpotDialog.removeAttribute('open');}
+async function saveManualSpotAssignment(){
+  const r=manualSpotTarget;if(!r||!client||!currentUser)return;const code=manualSpotCode.value.trim(),title=manualSpotTitle.value.trim(),duration=Math.max(1,Math.min(300,Number(manualSpotDuration.value)||30)),file=manualSpotFile.value.trim();
+  if(!code&&!title){setMessage(manualSpotMessage,'Informe pelo menos o código ou o nome do spot.','error');return;}
+  const existed=manualSpotForRow(r);const payload={row_key:rowDomKey(r),program_date:brToIso(r.date),block:Number(r.block),line_id:Number.isInteger(Number(r.id))?Number(r.id):null,party:r.party,cargo:r.cargo,spot_code:code||null,spot_title:title||code||'Spot definido pela rádio',duration_seconds:duration,audio_filename:file||null,resolved_map_spot_id:null,updated_at:new Date().toISOString(),updated_by:currentWho()};if(!existed){payload.created_by=currentWho();}
+  const res=await client.from(MANUAL_SPOT_TABLE).upsert(payload,{onConflict:'row_key'});if(res.error){setMessage(manualSpotMessage,`Não foi possível salvar: ${res.error.message}`,'error');return;}
+  await auditEvent({eventType:'MANUAL_SPOT_SET',row:r,summary:`Spot definido pela rádio: ${title||code}`,details:{code,title:title||code,duration,audio_filename:file||null}});await loadManualSpots(true);closeManualSpotEditor();setMessage(appMessage,'Spot definido pela rádio e sincronizado.','ok');
+}
+async function removeManualSpotAssignment(){
+  const r=manualSpotTarget;if(!r||!manualSpotForRow(r))return;if(!confirm('Remover a escolha manual deste spot?'))return;const old=manualSpotForRow(r);const res=await client.from(MANUAL_SPOT_TABLE).delete().eq('row_key',rowDomKey(r));if(res.error){setMessage(manualSpotMessage,`Não foi possível remover: ${res.error.message}`,'error');return;}await auditEvent({eventType:'MANUAL_SPOT_REMOVED',row:r,summary:`Spot manual removido: ${old.spot_title||old.spot_code||''}`});await loadManualSpots(true);closeManualSpotEditor();setMessage(appMessage,'Escolha manual removida.','ok');
+}
+async function resolveConflictKeepRadio(r){
+  const manual=manualSpotForRow(r),map=mapSpotForRow(r);if(!manual||!map)return;if(!confirm(`Manter “${manual.spot_title||manual.spot_code}” mesmo com o mapa indicando “${map.title||map.code}”?`))return;
+  const res=await client.from(MANUAL_SPOT_TABLE).update({resolved_map_spot_id:map.spotId,updated_at:new Date().toISOString(),updated_by:currentWho()}).eq('row_key',rowDomKey(r));if(res.error){setMessage(appMessage,`Não foi possível resolver o conflito: ${res.error.message}`,'error');return;}await auditEvent({eventType:'CONFLICT_KEEP_RADIO',row:r,summary:`Mantida escolha da rádio (${manual.spot_title||manual.spot_code}) em vez do mapa (${map.title||map.code})`,details:{radio_spot:manual.spot_title||manual.spot_code,map_spot:map.title||map.code,map_spot_id:map.spotId}});await loadManualSpots(true);setMessage(appMessage,'Conflito registrado: escolha da rádio mantida.','ok');
+}
+async function resolveConflictUseMap(r){
+  const manual=manualSpotForRow(r),map=mapSpotForRow(r);if(!manual||!map)return;if(!confirm(`Substituir a escolha da rádio pelo spot do mapa “${map.title||map.code}”?`))return;
+  const res=await client.from(MANUAL_SPOT_TABLE).delete().eq('row_key',rowDomKey(r));if(res.error){setMessage(appMessage,`Não foi possível adotar o mapa: ${res.error.message}`,'error');return;}await auditEvent({eventType:'CONFLICT_USE_MAP',row:r,summary:`Adotado spot do mapa: ${map.title||map.code}`,details:{previous_radio_spot:manual.spot_title||manual.spot_code,map_spot:map.title||map.code,map_spot_id:map.spotId}});await loadManualSpots(true);setMessage(appMessage,'Spot do mapa adotado.','ok');
 }
 function makeCheckCell(r,isDone){
   const ctd=document.createElement('td');ctd.className='checkcell';const cb=document.createElement('input');cb.type='checkbox';cb.className='check';cb.checked=isDone;cb.disabled=busy||!currentUser;cb.setAttribute('aria-label',`Marcar ${r.date}, bloco ${r.block}, sequência ${r.seq||'sem sequência'}, ${r.cargo}`);cb.addEventListener('change',()=>{const tr=cb.closest('tr');changeOne(r,cb.checked,tr,cb);});ctd.appendChild(cb);return ctd;
@@ -580,7 +763,7 @@ Deixe em branco para restaurar o horário automático das inserções desta jane
   if(!value){
     const del=await client.from(TIME_OVERRIDE_TABLE).delete().in('row_key',keys);
     if(del.error){setMessage(appMessage,`Não foi possível restaurar a janela: ${del.error.message}`,'error');return;}
-    await loadScheduleTimeSettings(true);setMessage(appMessage,`Janela ${a.windowLabel} restaurada para a distribuição automática.`,'ok');return;
+    await auditEvent({eventType:'WINDOW_TIME_CLEAR',row:r,summary:`Janela ${a.windowLabel} restaurada`,details:{rows:keys.length}});await loadScheduleTimeSettings(true);setMessage(appMessage,`Janela ${a.windowLabel} restaurada para a distribuição automática.`,'ok');return;
   }
   const minute=parseHalfHourTime(value,false);
   if(minute===null){setMessage(appMessage,'Horário inválido. Use minutos 00, 15, 30 ou 45, por exemplo 07:00, 07:15, 07:30 ou 07:45.','error');return;}
@@ -589,15 +772,15 @@ Deixe em branco para restaurar o horário automático das inserções desta jane
   const payloads=rows.map(row=>({row_key:rowDomKey(row),program_date:brToIso(row.date),block:Number(row.block),scheduled_minutes:minute,updated_at:now,updated_by:who}));
   const res=await client.from(TIME_OVERRIDE_TABLE).upsert(payloads,{onConflict:'row_key'});
   if(res.error){setMessage(appMessage,`Não foi possível alterar a janela: ${res.error.message}`,'error');return;}
-  await loadScheduleTimeSettings(true);setMessage(appMessage,`Janela movida para ${minutesToTime(minute)}–${minutesToTime(minute+30)} e sincronizada para os outros usuários.`,'ok');
+  await auditEvent({eventType:'WINDOW_TIME_SET',row:r,summary:`Janela ${a.windowLabel} movida para ${minutesToTime(minute)}–${minutesToTime(minute+30)}`,details:{rows:rows.length,scheduled_minutes:minute}});await loadScheduleTimeSettings(true);setMessage(appMessage,`Janela movida para ${minutesToTime(minute)}–${minutesToTime(minute+30)} e sincronizada para os outros usuários.`,'ok');
 }
 
 async function editInsertionTime(r,a){
   if(!client||!currentUser||!scheduleSettingsAvailable){setMessage(appMessage,'Execute primeiro o SQL de horários compartilhados no Supabase.','warn');return;}
   const current=a?.suggestedTime||minutesToTime(getBlockConfig(r.block).start),entered=prompt(`Novo horário para esta inserção (${r.cargo} – ${r.party}).\nUse :00, :15, :30 ou :45.\nDeixe em branco para voltar ao horário automático.`,current);if(entered===null)return;const rowKey=rowDomKey(r),value=entered.trim();
-  if(!value){const del=await client.from(TIME_OVERRIDE_TABLE).delete().eq('row_key',rowKey);if(del.error){setMessage(appMessage,`Não foi possível restaurar o horário: ${del.error.message}`,'error');return;}await loadScheduleTimeSettings(true);setMessage(appMessage,'Horário da inserção restaurado para a distribuição automática.','ok');return;}
+  if(!value){const del=await client.from(TIME_OVERRIDE_TABLE).delete().eq('row_key',rowKey);if(del.error){setMessage(appMessage,`Não foi possível restaurar o horário: ${del.error.message}`,'error');return;}await auditEvent({eventType:'TIME_CLEAR',row:r,summary:'Horário da inserção restaurado para a distribuição automática'});await loadScheduleTimeSettings(true);setMessage(appMessage,'Horário da inserção restaurado para a distribuição automática.','ok');return;}
   const minute=parseHalfHourTime(value,false),cfg=getBlockConfig(r.block);if(minute===null){setMessage(appMessage,'Horário inválido. Use minutos 00, 15, 30 ou 45, por exemplo 05:00, 05:15, 05:30 ou 05:45.','error');return;}if(minute<cfg.start||minute>=cfg.end){setMessage(appMessage,`O horário precisa ficar dentro do bloco ${r.block}: ${minutesToTime(cfg.start)} a ${minutesToTime(cfg.end)}.`,'error');return;}
-  const payload={row_key:rowKey,program_date:brToIso(r.date),block:Number(r.block),scheduled_minutes:minute,updated_at:new Date().toISOString(),updated_by:currentWho()};const res=await client.from(TIME_OVERRIDE_TABLE).upsert(payload,{onConflict:'row_key'});if(res.error){setMessage(appMessage,`Não foi possível salvar o horário: ${res.error.message}`,'error');return;}await loadScheduleTimeSettings(true);setMessage(appMessage,`Horário alterado para ${minutesToTime(minute)} e sincronizado.`,'ok');
+  const payload={row_key:rowKey,program_date:brToIso(r.date),block:Number(r.block),scheduled_minutes:minute,updated_at:new Date().toISOString(),updated_by:currentWho()};const res=await client.from(TIME_OVERRIDE_TABLE).upsert(payload,{onConflict:'row_key'});if(res.error){setMessage(appMessage,`Não foi possível salvar o horário: ${res.error.message}`,'error');return;}await auditEvent({eventType:'TIME_SET',row:r,summary:`Horário alterado para ${minutesToTime(minute)}`,details:{scheduled_minutes:minute}});await loadScheduleTimeSettings(true);setMessage(appMessage,`Horário alterado para ${minutesToTime(minute)} e sincronizado.`,'ok');
 }
 
 function renderOfficial(){
@@ -612,7 +795,7 @@ function renderSchedule(){
   const frag=document.createDocumentFragment();scheduleBody.textContent='';let lastDate='',lastSlot='';const visibleSlotCounts=new Map();for(const row of visibleRows){const sa=scheduleAssignments.get(rowDomKey(row));if(sa)visibleSlotCounts.set(sa.slotKey,(visibleSlotCounts.get(sa.slotKey)||0)+1);}
   for(const r of visibleRows){
     const a=scheduleAssignments.get(rowDomKey(r));if(!a)continue;
-    if(r.date!==lastDate){const dr=document.createElement('tr');dr.className='schedule-date-header';const dc=document.createElement('td');dc.colSpan=11;dc.textContent=r.date;dr.appendChild(dc);frag.appendChild(dr);lastDate=r.date;lastSlot='';}
+    if(r.date!==lastDate){const dr=document.createElement('tr');dr.className='schedule-date-header';const dc=document.createElement('td');dc.colSpan=11;dc.append(document.createTextNode(r.date));if(isDayLockedBr(r.date)){const lock=document.createElement('span');lock.className='date-lock-label';lock.textContent='🔒 grade travada';dc.appendChild(lock);}dr.appendChild(dc);frag.appendChild(dr);lastDate=r.date;lastSlot='';}
     if(a.slotKey!==lastSlot){
       const sr=document.createElement('tr');sr.className='slot-header';const sc=document.createElement('td');sc.colSpan=11;
       const visibleInSlot=visibleSlotCounts.get(a.slotKey)||0,total=scheduleSlotTotals.get(a.slotKey)||a.windowCount;
@@ -632,7 +815,7 @@ function updateScheduleInfo(){
   const counts=new Map();for(const r of base){const a=scheduleAssignments.get(rowDomKey(r));if(a)counts.set(a.slotKey,(counts.get(a.slotKey)||0)+1);}
   const vals=[...counts.values()];if(!vals.length){scheduleInfo.textContent='Nenhuma inserção para o período selecionado.';return;}
   const min=Math.min(...vals),max=Math.max(...vals),days=new Set(base.map(r=>r.date)).size,extras=base.filter(r=>r.extraMedia).length;
-  const overrides=base.reduce((n,r)=>n+(scheduleAssignments.get(rowDomKey(r))?.overridden?1:0),0);scheduleInfo.textContent=`${base.length.toLocaleString('pt-BR')} posição(ões) operacional(is) distribuída(s) em ${vals.length.toLocaleString('pt-BR')} janela(s) de 30 minutos${days>1?` em ${days} dias`:''}. Carga por janela: ${min===max?min:`${min} a ${max}`} spot(s).${extras?` ${extras} inserção(ões) veio/vieram do mapa de mídia sem linha oficial 1:1 e está(ão) destacada(s).`:''} As faixas oficiais 05:00–11:00, 11:00–18:00 e 18:00–24:00 são fixas. A distribuição automática permanece em :00 e :30; ajustes manuais podem usar também :15 e :45. Use o lápis da janela para mover o grupo inteiro ou o lápis da inserção para ajustar apenas uma linha.${overrides?` ${overrides} inserção(ões) possui(em) ajuste manual de horário.`:''}`;
+  const overrides=base.reduce((n,r)=>n+(scheduleAssignments.get(rowDomKey(r))?.overridden?1:0),0),locked=d&&isDayLockedBr(d);scheduleInfo.textContent=`${base.length.toLocaleString('pt-BR')} posição(ões) operacional(is) distribuída(s) em ${vals.length.toLocaleString('pt-BR')} janela(s) de 30 minutos${days>1?` em ${days} dias`:''}. Carga por janela: ${min===max?min:`${min} a ${max}`} spot(s).${extras?` ${extras} inserção(ões) veio/vieram do mapa de mídia sem linha oficial 1:1 e está(ão) destacada(s).`:''} As faixas oficiais 05:00–11:00, 11:00–18:00 e 18:00–24:00 são fixas. A distribuição automática permanece em :00 e :30; ajustes manuais podem usar também :15 e :45.${locked?' 🔒 A grade deste dia está travada: novos mapas não redistribuem os horários já capturados.':''} Use o lápis da janela para mover o grupo inteiro ou o lápis da inserção para ajustar apenas uma linha.${overrides?` ${overrides} inserção(ões) possui(em) ajuste manual de horário.`:''}`;
 }
 function render(){
   const scheduleMode=viewFilter.value==='schedule';schedulePanel.classList.toggle('hidden',!scheduleMode);scheduleSummaryPanel.classList.toggle('hidden',!scheduleMode);tablePanel.classList.toggle('hidden',scheduleMode);
@@ -643,111 +826,80 @@ function applyRowStateByRef(type,id){
   const set=type==='media'?checkedMedia:checked,metaMap=type==='media'?mediaCheckMeta:checkMeta,isDone=set.has(Number(id)),meta=metaMap.get(Number(id));
   document.querySelectorAll(`tr[data-checktype="${type}"][data-checkid="${id}"]`).forEach(tr=>{tr.classList.toggle('done',isDone);const cb=tr.querySelector('input.check');if(cb)cb.checked=isDone;const who=tr.querySelector('.meta-who');if(who)who.textContent=isDone?(meta?.checked_by||'—'):'—';const when=tr.querySelector('.meta-when');if(when)when.textContent=isDone?formatWhen(meta?.checked_at):'—';});
 }
-function updateStats(){ const dv=visibleRows.reduce((n,r)=>n+(isRowDone(r)?1:0),0);const source=viewFilter.value==='schedule'?(operationalRows.length?operationalRows:DATA):DATA;const da=source.reduce((n,r)=>n+(isRowDone(r)?1:0),0); const pct=source.length?Math.round((da/source.length)*1000)/10:0; visibleCount.textContent=visibleRows.length.toLocaleString('pt-BR'); doneVisible.textContent=dv.toLocaleString('pt-BR'); doneAll.textContent=da.toLocaleString('pt-BR'); percentAll.textContent=pct.toLocaleString('pt-BR')+'%'; progressBar.style.width=Math.min(100,pct)+'%'; }
-function reportSpotForRow(r){ return r.spotInfo||spotAssignments.get(r.id)||null; }
-function reportStatusForRow(r){
-  const spot=reportSpotForRow(r);
-  if(!spot)return 'missing';
-  return isRowDone(r)?'done':'pending';
+function updateStats(){
+  const dv=visibleRows.reduce((n,r)=>n+(isRowDone(r)?1:0),0),mv=visibleRows.reduce((n,r)=>n+(mapStatusForRow(r)==='absent'?1:0),0),cv=visibleRows.reduce((n,r)=>n+((spotConflictForRow(r)||lateMapAfterProgramming(r))?1:0),0);
+  const source=viewFilter.value==='schedule'?(operationalRows.length?operationalRows:DATA):DATA,da=source.reduce((n,r)=>n+(isRowDone(r)?1:0),0),pct=source.length?Math.round((da/source.length)*1000)/10:0;
+  visibleCount.textContent=visibleRows.length.toLocaleString('pt-BR');doneVisible.textContent=dv.toLocaleString('pt-BR');missingVisible.textContent=mv.toLocaleString('pt-BR');conflictVisible.textContent=cv.toLocaleString('pt-BR');doneAll.textContent=da.toLocaleString('pt-BR');percentAll.textContent=pct.toLocaleString('pt-BR')+'%';progressBar.style.width=Math.min(100,pct)+'%';
 }
-function reportStatusLabel(status){ return status==='done'?'Programado':status==='pending'?'Pendente':'Mapa de Mídia Ausente'; }
+function reportSpotForRow(r){ return effectiveSpotForRow(r); }
+function reportStatusForRow(r){ return isRowDone(r)?'done':'pending'; }
+function reportStatusLabel(status){ return status==='done'?'Programado':'Pendente'; }
+function reportMapStatusForRow(r){ return mapStatusForRow(r); }
+function reportConflictLabel(r){ const c=spotConflictForRow(r);if(c)return`Spot da rádio diverge do mapa (${c.map.title||c.map.code})`;if(lateMapAfterProgramming(r))return'Mapa cadastrado após a programação — conferir';if(newAfterLockForRow(r))return'Nova posição recebida após a trava do dia — conferir';return'Sem conflito'; }
+function reportHasConflict(r){ return !!spotConflictForRow(r)||lateMapAfterProgramming(r)||newAfterLockForRow(r); }
 function reportFilteredRows(){
-  const scheduleMode=reportViewFilter.value==='schedule';
-  const source=scheduleMode?(operationalRows.length?operationalRows:DATA):DATA;
-  const d=reportDateFilter.value,b=reportBlockFilter.value,c=reportCargoFilter.value,s=reportStatusFilter.value,q=normalize(reportSearchFilter.value.trim());
+  const scheduleMode=reportViewFilter.value==='schedule',source=scheduleMode?(operationalRows.length?operationalRows:DATA):DATA;
+  const d=reportDateFilter.value,b=reportBlockFilter.value,c=reportCargoFilter.value,s=reportStatusFilter.value,ms=reportMapStatusFilter.value,origin=reportOriginFilter.value,cf=reportConflictFilter.value,q=normalize(reportSearchFilter.value.trim());
   const rows=source.filter(r=>{
-    const spot=reportSpotForRow(r),status=reportStatusForRow(r),candidate=candidateForRow(r);
-    const searchable=[r.party,candidate,spot?.code,spot?.title,spot?.audioFilename,spot?.mapNumber,status==='missing'?'mapa de mídia ausente':''].map(normalize).join(' ');
-    return(!d||r.date===d)&&(!b||String(r.block)===b)&&(!c||r.cargo===c)&&(!s||status===s)&&(!q||searchable.includes(q));
+    const spot=reportSpotForRow(r),status=reportStatusForRow(r),mapStatus=reportMapStatusForRow(r),spotOrigin=spotOriginForRow(r),hasConflict=reportHasConflict(r),candidate=candidateForRow(r);
+    const searchable=[r.party,candidate,spot?.code,spot?.title,spot?.audioFilename,spot?.mapNumber,reportStatusLabel(status),mapStatusLabel(mapStatus),spotOriginLabel(spotOrigin),reportConflictLabel(r)].map(normalize).join(' ');
+    return(!d||r.date===d)&&(!b||String(r.block)===b)&&(!c||r.cargo===c)&&(!s||status===s)&&(!ms||mapStatus===ms)&&(!origin||spotOrigin===origin)&&(!cf||(cf==='yes'?hasConflict:!hasConflict))&&(!q||searchable.includes(q));
   });
   rows.sort((a,b)=>{
-    if(a.date!==b.date)return brToIso(a.date).localeCompare(brToIso(b.date));
-    if(Number(a.block)!==Number(b.block))return Number(a.block)-Number(b.block);
-    if(scheduleMode){
-      const sa=scheduleAssignments.get(rowDomKey(a)),sb=scheduleAssignments.get(rowDomKey(b));
-      return (sa?.suggestedMinute??9999)-(sb?.suggestedMinute??9999)||Number(a.seq||999)-Number(b.seq||999)||String(rowDomKey(a)).localeCompare(String(rowDomKey(b)));
-    }
+    if(a.date!==b.date)return brToIso(a.date).localeCompare(brToIso(b.date));if(Number(a.block)!==Number(b.block))return Number(a.block)-Number(b.block);
+    if(scheduleMode){const sa=scheduleAssignments.get(rowDomKey(a)),sb=scheduleAssignments.get(rowDomKey(b));return(sa?.suggestedMinute??9999)-(sb?.suggestedMinute??9999)||Number(a.seq||999)-Number(b.seq||999)||String(rowDomKey(a)).localeCompare(String(rowDomKey(b)));}
     return Number(a.seq||999)-Number(b.seq||999)||a.cargo.localeCompare(b.cargo,'pt-BR');
-  });
-  return rows;
+  });return rows;
 }
 function reportRowData(r){
-  const spot=reportSpotForRow(r),status=reportStatusForRow(r),meta=rowCheckMeta(r),sa=reportViewFilter.value==='schedule'?scheduleAssignments.get(rowDomKey(r)):null;
-  return {
-    'Data':r.date,
-    'Horário':sa?.suggestedTime||'',
-    'Janela 30 min':sa?.windowLabel||'',
-    'Bloco':Number(r.block)||r.block,
-    'Sequência':r.seq||'',
-    'Partido / Federação / Coligação':r.party,
-    'Candidato(s)':candidateForRow(r),
-    'Cargo':r.cargo,
-    'Spot a programar':spot?.title||spot?.code||'',
-    'Código':spot?.code||'',
-    'Duração (s)':spot?.duration||'',
-    'Arquivo':spot?.audioFilename||'',
-    'Nº do mapa':spot?.mapNumber||'',
-    'Situação':reportStatusLabel(status),
-    'Marcado por':status==='done'?(meta?.checked_by||''):'',
-    'Quando':status==='done'?formatWhen(meta?.checked_at):''
-  };
+  const spot=reportSpotForRow(r),status=reportStatusForRow(r),mapStatus=reportMapStatusForRow(r),origin=spotOriginForRow(r),meta=rowCheckMeta(r),sa=reportViewFilter.value==='schedule'?scheduleAssignments.get(rowDomKey(r)):null;
+  return {'Data':r.date,'Horário':sa?.suggestedTime||'','Janela 30 min':sa?.windowLabel||'','Bloco':Number(r.block)||r.block,'Sequência':r.seq||'','Partido / Federação / Coligação':r.party,'Candidato(s)':candidateForRow(r),'Cargo':r.cargo,'Spot a programar':spot?.title||spot?.code||'','Código':spot?.code||'','Duração (s)':spot?.duration||'','Arquivo':spot?.audioFilename||'','Nº do mapa':mapSpotForRow(r)?.mapNumber||'','Programação':reportStatusLabel(status),'Mapa de mídia':mapStatusLabel(mapStatus),'Origem do spot':spotOriginLabel(origin),'Conflito / revisão':reportConflictLabel(r),'Grade do dia':isDayLockedBr(r.date)?'Travada':'Aberta','Marcado por':status==='done'?(meta?.checked_by||''):'','Quando':status==='done'?formatWhen(meta?.checked_at):''};
 }
 function renderReports(){
-  reportRows=reportFilteredRows(); reportBody.textContent=''; const frag=document.createDocumentFragment();
-  let done=0,pending=0,missing=0;
+  reportRows=reportFilteredRows();reportBody.textContent='';const frag=document.createDocumentFragment();let done=0,pending=0,missing=0,conflicts=0;
   for(const r of reportRows){
-    const spot=reportSpotForRow(r),status=reportStatusForRow(r),meta=rowCheckMeta(r),sa=reportViewFilter.value==='schedule'?scheduleAssignments.get(rowDomKey(r)):null;
-    if(status==='done')done++; else if(status==='pending')pending++; else missing++;
-    const tr=document.createElement('tr'); if(status==='done')tr.classList.add('done');
-    tr.appendChild(td(r.date,'datecell')); tr.appendChild(td(sa?.suggestedTime||'—','timecell')); tr.appendChild(td(sa?.windowLabel||'—','windowcell')); tr.appendChild(td(r.block,'num')); tr.appendChild(td(r.seq||'—','num')); tr.appendChild(td(r.party,'party')); tr.appendChild(td(candidateForRow(r),'candidate')); tr.appendChild(td(r.cargo,'cargo'));
-    const spotTd=document.createElement('td'); spotTd.className='report-spot';
-    if(spot){ const main=document.createElement('div');main.className='spot-main';main.textContent=spot.title||spot.code||'Spot';spotTd.appendChild(main); }
-    else { const miss=document.createElement('span');miss.className='spot-missing';miss.textContent='MAPA DE MÍDIA AUSENTE';spotTd.appendChild(miss); }
-    tr.appendChild(spotTd); tr.appendChild(td(spot?.code||'—')); tr.appendChild(td(spot?.duration?`${spot.duration}s`:'—')); tr.appendChild(td(spot?.audioFilename||'—')); tr.appendChild(td(spot?.mapNumber||'—'));
-    const st=document.createElement('td');const badge=document.createElement('span');badge.className=`report-status ${status}`;badge.textContent=reportStatusLabel(status);st.appendChild(badge);tr.appendChild(st);
+    const spot=reportSpotForRow(r),status=reportStatusForRow(r),mapStatus=reportMapStatusForRow(r),origin=spotOriginForRow(r),hasConflict=reportHasConflict(r),meta=rowCheckMeta(r),sa=reportViewFilter.value==='schedule'?scheduleAssignments.get(rowDomKey(r)):null;
+    if(status==='done')done++;else pending++;if(mapStatus==='absent')missing++;if(hasConflict)conflicts++;
+    const tr=document.createElement('tr');if(status==='done')tr.classList.add('done');tr.appendChild(td(r.date,'datecell'));tr.appendChild(td(sa?.suggestedTime||'—','timecell'));tr.appendChild(td(sa?.windowLabel||'—','windowcell'));tr.appendChild(td(r.block,'num'));tr.appendChild(td(r.seq||'—','num'));tr.appendChild(td(r.party,'party'));tr.appendChild(td(candidateForRow(r),'candidate'));tr.appendChild(td(r.cargo,'cargo'));
+    const spotTd=document.createElement('td');spotTd.className='report-spot';if(spot){const main=document.createElement('div');main.className='spot-main';main.textContent=spot.title||spot.code||'Spot';spotTd.appendChild(main);}else{const miss=document.createElement('span');miss.className='spot-missing';miss.textContent='SPOT NÃO DEFINIDO';spotTd.appendChild(miss);}tr.appendChild(spotTd);
+    tr.appendChild(td(spot?.code||'—'));tr.appendChild(td(spot?.duration?`${spot.duration}s`:'—'));tr.appendChild(td(spot?.audioFilename||'—'));tr.appendChild(td(mapSpotForRow(r)?.mapNumber||'—'));
+    const st=document.createElement('td'),sb=document.createElement('span');sb.className=`report-status ${status}`;sb.textContent=reportStatusLabel(status);st.appendChild(sb);tr.appendChild(st);
+    const mst=document.createElement('td'),mb=document.createElement('span');mb.className=`status-badge ${mapStatus==='received'?'map-received':'map-absent'}`;mb.textContent=mapStatusLabel(mapStatus);mst.appendChild(mb);tr.appendChild(mst);
+    const ot=document.createElement('td'),ob=document.createElement('span');ob.className=`status-badge ${origin==='radio'?'origin-radio':origin==='map'?'origin-map':'map-absent'}`;ob.textContent=spotOriginLabel(origin);ot.appendChild(ob);tr.appendChild(ot);
+    const ct=document.createElement('td');if(hasConflict){const cb=document.createElement('span');cb.className='status-badge conflict';cb.textContent=reportConflictLabel(r);ct.appendChild(cb);}else ct.textContent='—';tr.appendChild(ct);
     tr.appendChild(td(status==='done'?(meta?.checked_by||'—'):'—','who'));tr.appendChild(td(status==='done'?formatWhen(meta?.checked_at):'—','when'));frag.appendChild(tr);
   }
-  reportBody.appendChild(frag); reportEmpty.hidden=reportRows.length!==0;
-  reportTotal.textContent=reportRows.length.toLocaleString('pt-BR'); reportDone.textContent=done.toLocaleString('pt-BR'); reportPending.textContent=pending.toLocaleString('pt-BR'); reportMissing.textContent=missing.toLocaleString('pt-BR');
-  reportSummary.textContent=`${done.toLocaleString('pt-BR')} programado(s), ${pending.toLocaleString('pt-BR')} pendente(s) com mapa disponível e ${missing.toLocaleString('pt-BR')} posição(ões) com Mapa de Mídia Ausente.`;
+  reportBody.appendChild(frag);reportEmpty.hidden=reportRows.length!==0;reportTotal.textContent=reportRows.length.toLocaleString('pt-BR');reportDone.textContent=done.toLocaleString('pt-BR');reportPending.textContent=pending.toLocaleString('pt-BR');reportMissing.textContent=missing.toLocaleString('pt-BR');reportConflicts.textContent=conflicts.toLocaleString('pt-BR');reportSummary.textContent=`${done.toLocaleString('pt-BR')} programado(s), ${pending.toLocaleString('pt-BR')} pendente(s). ${missing.toLocaleString('pt-BR')} posição(ões) sem mapa de mídia e ${conflicts.toLocaleString('pt-BR')} conflito(s)/revisão(ões).`;
 }
 function syncReportFiltersFromProgram(){
-  reportDateFilter.value=dateFilter.value; reportViewFilter.value=viewFilter.value; reportBlockFilter.value=blockFilter.value; reportCargoFilter.value=cargoFilter.value; reportSearchFilter.value=searchFilter.value;
-  reportStatusFilter.value=statusFilter.value==='done'?'done':statusFilter.value==='pending'?'pending':''; renderReports();
+  reportDateFilter.value=dateFilter.value;reportViewFilter.value=viewFilter.value;reportBlockFilter.value=blockFilter.value;reportCargoFilter.value=cargoFilter.value;reportStatusFilter.value=statusFilter.value;reportMapStatusFilter.value=mapStatusFilter.value;reportOriginFilter.value='';reportConflictFilter.value='';reportSearchFilter.value=searchFilter.value;renderReports();
 }
 function safeFilePart(s){return (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9_-]+/g,'-').replace(/^-+|-+$/g,'').toLowerCase();}
 function exportReportWorkbook(){
-  reportRows=reportFilteredRows();
-  if(!reportRows.length){setMessage(reportMessage,'Não há linhas para exportar com os filtros atuais.','warn');return;}
-  if(!window.XLSX){setMessage(reportMessage,'A biblioteca de Excel não carregou. Verifique a internet e recarregue a página.','error');return;}
-  const data=reportRows.map(reportRowData);
-  const ws=XLSX.utils.json_to_sheet(data);
-  ws['!autofilter']={ref:ws['!ref']};
-  ws['!cols']=[{wch:12},{wch:10},{wch:15},{wch:8},{wch:10},{wch:38},{wch:28},{wch:20},{wch:34},{wch:14},{wch:12},{wch:32},{wch:15},{wch:24},{wch:30},{wch:18}];
-  const summaryRows=[
-    ['Relatório de Programação Eleitoral 2026',''],
-    ['Gerado em',new Date().toLocaleString('pt-BR')],
-    ['Data',reportDateFilter.value||'Todas'],
-    ['Visualização',reportViewFilter.value==='schedule'?'Grade horária (30 min)':'Lista oficial'],
-    ['Bloco',reportBlockFilter.value||'Todos'],
-    ['Cargo',reportCargoFilter.value||'Todos'],
-    ['Situação',reportStatusFilter.options[reportStatusFilter.selectedIndex]?.text||'Todos'],
-    ['Pesquisa',reportSearchFilter.value||'—'],
-    ['Total de linhas',reportRows.length],
-    ['Programados',reportRows.filter(r=>reportStatusForRow(r)==='done').length],
-    ['Pendentes',reportRows.filter(r=>reportStatusForRow(r)==='pending').length],
-    ['Mapas de Mídia Ausentes',reportRows.filter(r=>reportStatusForRow(r)==='missing').length]
-  ];
-  const wsResumo=XLSX.utils.aoa_to_sheet(summaryRows); wsResumo['!cols']=[{wch:27},{wch:42}];
-  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Relatório'); XLSX.utils.book_append_sheet(wb,wsResumo,'Resumo');
-  const datePart=safeFilePart(reportDateFilter.value)||'todas-as-datas'; const statusPart=safeFilePart(reportStatusFilter.value||'todos');
-  XLSX.writeFile(wb,`relatorio-programacao-${datePart}-${statusPart}.xlsx`);
-  setMessage(reportMessage,`Planilha gerada com ${reportRows.length.toLocaleString('pt-BR')} linha(s).`,'ok');
+  reportRows=reportFilteredRows();if(!reportRows.length){setMessage(reportMessage,'Não há linhas para exportar com os filtros atuais.','warn');return;}if(!window.XLSX){setMessage(reportMessage,'A biblioteca de Excel não carregou. Verifique a internet e recarregue a página.','error');return;}
+  const data=reportRows.map(reportRowData),ws=XLSX.utils.json_to_sheet(data);ws['!autofilter']={ref:ws['!ref']};ws['!cols']=[{wch:12},{wch:10},{wch:15},{wch:8},{wch:10},{wch:38},{wch:28},{wch:20},{wch:34},{wch:14},{wch:12},{wch:32},{wch:15},{wch:16},{wch:22},{wch:22},{wch:38},{wch:14},{wch:30},{wch:18}];
+  const summaryRows=[['Relatório de Programação Eleitoral 2026',''],['Gerado em',new Date().toLocaleString('pt-BR')],['Data',reportDateFilter.value||'Todas'],['Visualização',reportViewFilter.value==='schedule'?'Grade horária (30 min)':'Lista oficial'],['Bloco',reportBlockFilter.value||'Todos'],['Cargo',reportCargoFilter.value||'Todos'],['Programação',reportStatusFilter.options[reportStatusFilter.selectedIndex]?.text||'Todos'],['Mapa de mídia',reportMapStatusFilter.options[reportMapStatusFilter.selectedIndex]?.text||'Todos'],['Origem do spot',reportOriginFilter.options[reportOriginFilter.selectedIndex]?.text||'Todas'],['Conflito',reportConflictFilter.options[reportConflictFilter.selectedIndex]?.text||'Todos'],['Pesquisa',reportSearchFilter.value||'—'],['Total de linhas',reportRows.length],['Programados',reportRows.filter(r=>reportStatusForRow(r)==='done').length],['Pendentes',reportRows.filter(r=>reportStatusForRow(r)==='pending').length],['Mapas de Mídia Ausentes',reportRows.filter(r=>reportMapStatusForRow(r)==='absent').length],['Conflitos / revisões',reportRows.filter(reportHasConflict).length]];
+  const wsResumo=XLSX.utils.aoa_to_sheet(summaryRows);wsResumo['!cols']=[{wch:27},{wch:48}];const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Relatório');XLSX.utils.book_append_sheet(wb,wsResumo,'Resumo');const datePart=safeFilePart(reportDateFilter.value)||'todas-as-datas',statusPart=safeFilePart(reportStatusFilter.value||'todos');XLSX.writeFile(wb,`relatorio-programacao-${datePart}-${statusPart}.xlsx`);setMessage(reportMessage,`Planilha gerada com ${reportRows.length.toLocaleString('pt-BR')} linha(s).`,'ok');
+}
+function auditFilteredRows(){
+  const d=auditDateFilter.value,type=auditTypeFilter.value,q=normalize(auditSearchFilter.value.trim());return auditRows.filter(a=>{const cat=auditCategory(a.event_type),br=a.program_date?isoToBr(a.program_date):'',searchable=[a.actor,a.summary,a.event_type,a.party,a.cargo,br,a.block,JSON.stringify(a.details||{})].map(normalize).join(' ');return(!d||br===d)&&(!type||cat===type)&&(!q||searchable.includes(q));});
+}
+function renderAudit(){
+  if(!auditBody)return;const rows=auditFilteredRows();auditBody.textContent='';const frag=document.createDocumentFragment();for(const a of rows){const tr=document.createElement('tr');tr.appendChild(td(formatWhen(a.created_at),'when'));tr.appendChild(td(a.actor||'—','audit-actor'));tr.appendChild(td(auditTypeLabel(a.event_type),'audit-type'));tr.appendChild(td(a.program_date?isoToBr(a.program_date):'—','datecell'));tr.appendChild(td(a.block||'—','num'));tr.appendChild(td(a.summary||'—','audit-summary'));frag.appendChild(tr);}auditBody.appendChild(frag);auditEmpty.hidden=rows.length!==0;auditCount.textContent=`${rows.length.toLocaleString('pt-BR')} registro(s)`;
+}
+async function loadAuditData(silent=false){
+  if(!client)return false;const {data,error}=await client.from(AUDIT_TABLE).select('*').order('created_at',{ascending:false}).limit(3000);if(error){auditRows=[];if(!silent)setMessage(auditMessage,`Histórico indisponível: ${error.message}`,'warn');renderAudit();return false;}auditRows=data||[];if(!silent)setMessage(auditMessage,'','info');renderAudit();return true;
+}
+function updateAuditRealtime(payload){if(payload.eventType!=='INSERT'||!payload.new)return;if(auditRows.some(a=>String(a.id)===String(payload.new.id)))return;auditRows.unshift(payload.new);if(auditRows.length>3000)auditRows.length=3000;if(currentView==='historico')renderAudit();}
+function exportAuditWorkbook(){
+  const rows=auditFilteredRows();if(!rows.length){setMessage(auditMessage,'Não há registros para exportar.','warn');return;}if(!window.XLSX){setMessage(auditMessage,'A biblioteca de Excel não carregou.','error');return;}const data=rows.map(a=>({'Quando':formatWhen(a.created_at),'Usuário':a.actor||'','Tipo':auditTypeLabel(a.event_type),'Data':a.program_date?isoToBr(a.program_date):'','Bloco':a.block||'','Partido / Coligação':a.party||'','Cargo':a.cargo||'','Resumo':a.summary||'','Detalhes':JSON.stringify(a.details||{})}));const ws=XLSX.utils.json_to_sheet(data);ws['!autofilter']={ref:ws['!ref']};ws['!cols']=[{wch:18},{wch:28},{wch:30},{wch:12},{wch:8},{wch:40},{wch:20},{wch:55},{wch:65}];const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Histórico');XLSX.writeFile(wb,`historico-programacao-${safeFilePart(auditDateFilter.value)||'todas-as-datas'}.xlsx`);setMessage(auditMessage,`Histórico exportado com ${rows.length.toLocaleString('pt-BR')} registro(s).`,'ok');
 }
 function updateMediaProgramWarning(){
-  const box=$('mediaProgramWarning'); if(!mediaMismatches.length){setMessage(box,'','info');return;}
-  const relevant=mediaMismatches.filter(w=>(!dateFilter.value||w.date===dateFilter.value)&&(!blockFilter.value||String(w.block)===blockFilter.value)&&(!cargoFilter.value||w.cargo===cargoFilter.value)&&(!searchFilter.value||(normalize(w.party).includes(normalize(searchFilter.value))||normalize(w.candidates||'').includes(normalize(searchFilter.value)))));
-  if(relevant.length) setMessage(box,`⚠️ ${relevant.length} bloco(s) em que a soma dos mapas recebidos não coincide com a quantidade da programação oficial. As inserções extras continuam visíveis e as faltantes aparecem como “Mapa de Mídia Ausente”. Confira em “Mapas de Mídia”.`,'warn'); else setMessage(box,'','info');
+  const box=$('mediaProgramWarning');
+  const relevant=mediaMismatches.filter(w=>(!dateFilter.value||w.date===dateFilter.value)&&(!blockFilter.value||String(w.block)===blockFilter.value)&&(!cargoFilter.value||w.cargo===cargoFilter.value)&&(!searchFilter.value||(normalize(w.party).includes(normalize(searchFilter.value))||normalize(w.candidates||'').includes(normalize(searchFilter.value))))),conflicts=visibleRows.filter(reportHasConflict).length,parts=[];
+  if(conflicts)parts.push(`⚠️ ${conflicts} linha(s) precisa(m) de revisão porque um mapa recebido diverge de uma escolha da rádio, chegou depois da programação ou criou uma nova posição após a trava do dia.`);
+  if(relevant.length)parts.push(`${relevant.length} bloco(s) têm quantidade de mapas diferente da programação oficial. Isso não impede a programação: as posições sem ordem do partido continuam como “Mapa de Mídia Ausente” e podem receber spot definido pela rádio.`);
+  setMessage(box,parts.join(' '),parts.length?'warn':'info');
 }
 function interleaveMediaItems(items){
   const queues=new Map();
@@ -780,7 +932,7 @@ function rebuildOperationalRows(){
     for(let i=0;i<total;i++){
       const base=official[i],mi=media[i];
       let spotInfo=null;
-      if(mi)spotInfo={code:mi.spot.code,title:mi.spot.title||mi.spot.code,duration:Number(mi.spot.duration_seconds)||30,audioFilename:mi.spot.audio_filename||'',order:Number(mi.seq.occurrence_order),mapNumber:mi.map.map_number,mapId:mi.map.id,sequenceId:Number(mi.seq.id),candidateName:mapCandidate(mi.map),sourceFile:mi.map.source_file||''};
+      if(mi)spotInfo={code:mi.spot.code,title:mi.spot.title||mi.spot.code,duration:Number(mi.spot.duration_seconds)||30,audioFilename:mi.spot.audio_filename||'',order:Number(mi.seq.occurrence_order),mapNumber:mi.map.map_number,mapId:mi.map.id,spotId:Number(mi.spot.id),sequenceId:Number(mi.seq.id),candidateName:mapCandidate(mi.map),sourceFile:mi.map.source_file||'',sequenceCreatedAt:mi.seq.created_at||mi.seq.updated_at||'',mapCreatedAt:mi.map.created_at||mi.map.updated_at||''};
       if(base){
         const r={...base,rowKey:`o${base.id}`,checkType:'official',checkId:base.id,candidateName:spotInfo?.candidateName||'',spotInfo,extraMedia:false};
         operationalRows.push(r);if(spotInfo)spotAssignments.set(base.id,spotInfo);
@@ -791,10 +943,26 @@ function rebuildOperationalRows(){
   }
   buildScheduleAssignments();applyFilters();
 }
-function updateFromRealtime(payload){ const row=payload.eventType==='DELETE'?payload.old:payload.new; const id=Number(row?.line_id); if(!Number.isInteger(id))return; if(payload.eventType==='DELETE'){checked.delete(id);checkMeta.delete(id);}else{checked.add(id);checkMeta.set(id,{checked_at:row.checked_at,checked_by:row.checked_by});} if(statusFilter.value)applyFilters();else{applyRowStateByRef('official',id);updateStats();if(currentView==='relatorios')renderReports();} setLive('Tempo real conectado','live'); }
-function updateMediaCheckRealtime(payload){const row=payload.eventType==='DELETE'?payload.old:payload.new;const id=Number(row?.sequence_id);if(!Number.isInteger(id))return;if(payload.eventType==='DELETE'){checkedMedia.delete(id);mediaCheckMeta.delete(id);}else{checkedMedia.add(id);mediaCheckMeta.set(id,{checked_at:row.checked_at,checked_by:row.checked_by});}if(statusFilter.value)applyFilters();else{applyRowStateByRef('media',id);updateStats();if(currentView==='relatorios')renderReports();}setLive('Tempo real conectado','live');}
+function updateFromRealtime(payload){ const row=payload.eventType==='DELETE'?payload.old:payload.new; const id=Number(row?.line_id); if(!Number.isInteger(id))return; if(payload.eventType==='DELETE'){checked.delete(id);checkMeta.delete(id);}else{checked.add(id);checkMeta.set(id,{checked_at:row.checked_at,checked_by:row.checked_by});} if(statusFilter.value)applyFilters();else{applyRowStateByRef('official',id);updateStats();updateMediaProgramWarning();if(currentView==='relatorios')renderReports();} setLive('Tempo real conectado','live'); }
+function updateMediaCheckRealtime(payload){const row=payload.eventType==='DELETE'?payload.old:payload.new;const id=Number(row?.sequence_id);if(!Number.isInteger(id))return;if(payload.eventType==='DELETE'){checkedMedia.delete(id);mediaCheckMeta.delete(id);}else{checkedMedia.add(id);mediaCheckMeta.set(id,{checked_at:row.checked_at,checked_by:row.checked_by});}if(statusFilter.value)applyFilters();else{applyRowStateByRef('media',id);updateStats();updateMediaProgramWarning();if(currentView==='relatorios')renderReports();}setLive('Tempo real conectado','live');}
 function scheduleMediaReload(){ clearTimeout(mediaReloadTimer); mediaReloadTimer=setTimeout(()=>loadMediaData(true),250); }
 function scheduleSettingsReload(){clearTimeout(scheduleSettingsReloadTimer);scheduleSettingsReloadTimer=setTimeout(()=>loadScheduleTimeSettings(true),200);}
+function scheduleAuxiliaryReload(){clearTimeout(auxiliaryReloadTimer);auxiliaryReloadTimer=setTimeout(()=>Promise.all([loadManualSpots(true),loadDayLocks(true)]),220);}
+async function loadManualSpots(silent=false){
+  if(!client)return false;const {data,error}=await client.from(MANUAL_SPOT_TABLE).select('*');if(error){manualSpotsAvailable=false;manualSpots=new Map();if(!silent)setMessage(appMessage,`Spots manuais indisponíveis. Execute o SQL desta atualização. Detalhe: ${error.message}`,'warn');applyFilters();return false;}manualSpotsAvailable=true;manualSpots=new Map((data||[]).map(row=>[String(row.row_key),row]));applyFilters();return true;
+}
+async function loadDayLocks(silent=false){
+  if(!client)return false;const [lr,pr]=await Promise.all([client.from(DAY_LOCK_TABLE).select('*'),client.from(LOCKED_POSITION_TABLE).select('*')]);const error=lr.error||pr.error;if(error){dayLocksAvailable=false;dayLocks=new Map();lockedPositions=new Map();buildScheduleAssignments();applyFilters();if(!silent)setMessage(appMessage,`Trava de grade indisponível. Execute o SQL desta atualização. Detalhe: ${error.message}`,'warn');return false;}dayLocksAvailable=true;dayLocks=new Map((lr.data||[]).map(row=>[String(row.program_date),row]));lockedPositions=new Map((pr.data||[]).map(row=>[String(row.row_key),row]));buildScheduleAssignments();applyFilters();updateDayLockUI();return true;
+}
+function updateDayLockUI(){
+  if(!toggleDayLock||!dayLockStatus)return;const br=dateFilter.value;if(!dayLocksAvailable){toggleDayLock.disabled=true;dayLockStatus.className='lock-status';dayLockStatus.textContent='Execute o SQL da atualização para usar a trava de programação.';return;}if(!br){toggleDayLock.disabled=true;toggleDayLock.textContent='🔒 Travar programação do dia';dayLockStatus.className='lock-status';dayLockStatus.textContent='Selecione uma data específica para travar a grade.';return;}const iso=brToIso(br),lock=dayLocks.get(iso);toggleDayLock.disabled=!currentUser;if(lock){toggleDayLock.textContent='🔓 Destravar programação do dia';dayLockStatus.className='lock-status locked';dayLockStatus.textContent=`🔒 Grade travada por ${lock.locked_by||'usuário'} em ${formatWhen(lock.locked_at)}. Novos mapas não redistribuem os horários já capturados.`;}else{toggleDayLock.textContent='🔒 Travar programação do dia';dayLockStatus.className='lock-status';dayLockStatus.textContent='Grade aberta: novos mapas podem recalcular a distribuição automática. Travar congela os horários atuais deste dia.';}
+}
+async function toggleScheduleDayLock(){
+  const br=dateFilter.value;if(!br){setMessage(appMessage,'Selecione uma data específica antes de travar a programação.','warn');return;}if(!dayLocksAvailable){setMessage(appMessage,'Execute primeiro o SQL desta atualização no Supabase.','warn');return;}const iso=brToIso(br),lock=dayLocks.get(iso);
+  if(lock){if(!confirm(`Destravar a grade de ${br}? Depois disso, novos mapas poderão recalcular a distribuição automática.`))return;const res=await client.rpc('unlock_schedule_day',{p_program_date:iso,p_actor:currentWho()});if(res.error){setMessage(appMessage,`Não foi possível destravar: ${res.error.message}`,'error');return;}await auditEvent({eventType:'DAY_UNLOCK',programDate:iso,summary:`Programação de ${br} destravada`});await loadDayLocks(true);setMessage(appMessage,`Programação de ${br} destravada.`,'ok');return;}
+  const source=(operationalRows.length?operationalRows:DATA).filter(r=>r.date===br),positions=[];for(const r of source){const a=scheduleAssignments.get(rowDomKey(r));if(a)positions.push({row_key:rowDomKey(r),block:Number(r.block),scheduled_minutes:Number(a.suggestedMinute)});}if(!positions.length){setMessage(appMessage,'Não há inserções para travar nesta data.','warn');return;}if(!confirm(`Travar a grade de ${br} com os ${positions.length} horários atuais? Novos mapas não redistribuirão essas posições.`))return;
+  const res=await client.rpc('lock_schedule_day',{p_program_date:iso,p_actor:currentWho(),p_positions:positions});if(res.error){setMessage(appMessage,`Não foi possível travar: ${res.error.message}`,'error');return;}await auditEvent({eventType:'DAY_LOCK',programDate:iso,summary:`Programação de ${br} travada com ${positions.length} posição(ões)`,details:{positions:positions.length}});await loadDayLocks(true);setMessage(appMessage,`Programação de ${br} travada. Os horários atuais foram congelados.`,'ok');
+}
 async function loadScheduleTimeSettings(silent=false){
   if(!client)return false;const or=await client.from(TIME_OVERRIDE_TABLE).select('*');const err=or.error;
   if(err){scheduleSettingsAvailable=false;timeOverrides=new Map();buildScheduleAssignments();applyFilters();if(!silent)setMessage(appMessage,`Editor de horários indisponível. Execute o SQL da atualização no Supabase. Detalhe: ${err.message}`,'warn');return false;}
@@ -814,6 +982,10 @@ async function subscribeRealtime(){
       .on('postgres_changes',{event:'*',schema:'public',table:SPOT_TABLE},scheduleMediaReload)
       .on('postgres_changes',{event:'*',schema:'public',table:SEQUENCE_TABLE},scheduleMediaReload)
       .on('postgres_changes',{event:'*',schema:'public',table:TIME_OVERRIDE_TABLE},scheduleSettingsReload)
+      .on('postgres_changes',{event:'*',schema:'public',table:MANUAL_SPOT_TABLE},scheduleAuxiliaryReload)
+      .on('postgres_changes',{event:'*',schema:'public',table:DAY_LOCK_TABLE},scheduleAuxiliaryReload)
+      .on('postgres_changes',{event:'*',schema:'public',table:LOCKED_POSITION_TABLE},scheduleAuxiliaryReload)
+      .on('postgres_changes',{event:'INSERT',schema:'public',table:AUDIT_TABLE},updateAuditRealtime)
       .subscribe(status=>{
         if(status==='SUBSCRIBED'){
           reconnectAttempts=0; setLive('Tempo real conectado','live'); finish(resolve,true);
@@ -841,7 +1013,7 @@ async function startSync(){
   syncPromise=(async()=>{
     try{
       await subscribeRealtime();
-      await Promise.all([loadChecks(),loadMediaData(),loadMediaChecks(),loadScheduleTimeSettings()]);
+      await Promise.all([loadChecks(),loadMediaData(),loadMediaChecks(),loadScheduleTimeSettings(),loadManualSpots(),loadDayLocks(),loadAuditData()]);
       reconnectAttempts=0; startRealtimeWatchdog();
     }catch(e){
       setMessage(appMessage,`Não foi possível iniciar a sincronização: ${e.message}`,'error');
@@ -857,7 +1029,7 @@ async function changeOne(r,state,tr,cb){
   if(state){const meta={checked_at:new Date().toISOString(),checked_by:currentWho()};ref.set.add(ref.id);ref.meta.set(ref.id,meta);}else{ref.set.delete(ref.id);ref.meta.delete(ref.id);}applyRowStateByRef(ref.type,ref.id);updateStats();if(currentView==='relatorios')renderReports();
   let result;if(state){const payload={[ref.key]:ref.id,checked_at:new Date().toISOString(),checked_by:currentWho()};result=await client.from(ref.table).upsert(payload,{onConflict:ref.key});}else result=await client.from(ref.table).delete().eq(ref.key,ref.id);
   tr.classList.remove('saving');cb.disabled=busy||!currentUser;
-  if(result.error){if(previous){ref.set.add(ref.id);if(previousMeta)ref.meta.set(ref.id,previousMeta);}else{ref.set.delete(ref.id);ref.meta.delete(ref.id);}applyRowStateByRef(ref.type,ref.id);updateStats();if(currentView==='relatorios')renderReports();setMessage(appMessage,`Não foi possível salvar: ${result.error.message}`,'error');}else setMessage(appMessage,'','info');
+  if(result.error){if(previous){ref.set.add(ref.id);if(previousMeta)ref.meta.set(ref.id,previousMeta);}else{ref.set.delete(ref.id);ref.meta.delete(ref.id);}applyRowStateByRef(ref.type,ref.id);updateStats();if(currentView==='relatorios')renderReports();setMessage(appMessage,`Não foi possível salvar: ${result.error.message}`,'error');}else{setMessage(appMessage,'','info');auditProgramRows([r],state);}
 }
 async function runRowBatches(rows,state){
   const refs=[];const seen=new Set();for(const r of rows){const ref=checkRef(r),k=`${ref.type}:${ref.id}`;if(!seen.has(k)){seen.add(k);refs.push(ref);}}
@@ -872,14 +1044,14 @@ async function runRowBatches(rows,state){
         if(res.error)throw res.error;
       }
     }
-    applyFilters();setMessage(appMessage,state?'Linhas marcadas e sincronizadas.':'Linhas desmarcadas e sincronizadas.','ok');
+    applyFilters();auditProgramRows(rows,state);setMessage(appMessage,state?'Linhas marcadas e sincronizadas.':'Linhas desmarcadas e sincronizadas.','ok');
   }catch(e){setMessage(appMessage,`A sincronização foi interrompida: ${e.message}`,'error');await Promise.all([loadChecks(),loadMediaChecks()]);}finally{setBusy(false);}
 }
 async function clearAllSharedChecks(){
   const total=checked.size+checkedMedia.size;if(!total)return;if(!confirm(`Apagar as ${total.toLocaleString('pt-BR')} marcações compartilhadas?`))return;
   setBusy(true,'Limpando marcações…');try{
     const [a,b]=await Promise.all([client.from(CHECK_TABLE).delete().gte('line_id',0),client.from(MEDIA_CHECK_TABLE).delete().gte('sequence_id',0)]);
-    if(a.error)throw a.error;if(b.error)throw b.error;checked.clear();checkMeta.clear();checkedMedia.clear();mediaCheckMeta.clear();applyFilters();setMessage(appMessage,'Marcações apagadas.','ok');
+    if(a.error)throw a.error;if(b.error)throw b.error;checked.clear();checkMeta.clear();checkedMedia.clear();mediaCheckMeta.clear();applyFilters();auditEvent({eventType:'CLEAR_ALL_CHECKS',summary:`Todas as ${total} marcações compartilhadas foram apagadas`,details:{total}});setMessage(appMessage,'Marcações apagadas.','ok');
   }catch(e){setMessage(appMessage,`Não foi possível limpar: ${e.message}`,'error');}finally{setBusy(false);}
 }
 
@@ -927,26 +1099,34 @@ function renderMapWorkspace(){
 }
 function newMap(){ selectedMapId=null;$('mapNumber').dataset.loadedMapId='';fillMapForm(null);renderMapList();setMessage(mediaMessage,'Novo mapa: preencha os dados e clique em “Salvar mapa”.','info'); }
 async function saveMap(){
-  const cargo=$('mapCargo').value,party=$('mapParty').value,candidate=$('mapCandidateName').value.trim(),number=$('mapNumber').value.trim(),source=$('mapSourceFile').value.trim(),title=$('mapTitle').value.trim(),start=$('mapStart').value,end=$('mapEnd').value,active=$('mapActive').checked,notes=$('mapNotes').value.trim();
+  const cargo=$('mapCargo').value,party=$('mapParty').value,candidate=$('mapCandidateName').value.trim(),number=$('mapNumber').value.trim(),source=$('mapSourceFile').value.trim(),title=$('mapTitle').value.trim(),start=$('mapStart').value,end=$('mapEnd').value,active=$('mapActive').checked,notes=$('mapNotes').value.trim(),wasUpdate=!!selectedMapId;
   if(!party||!number||!start||!end){setMessage(mediaMessage,'Preencha cargo, campanha, número do mapa e período.','error');return;}if(end<start){setMessage(mediaMessage,'A data final não pode ser anterior à data inicial.','error');return;}
   setMediaBusy(true);const payload={program_party:party,cargo,candidate_name:candidate||null,map_number:number,source_file:source||null,title:title||null,start_date:start,end_date:end,active,notes:notes||null,updated_at:new Date().toISOString(),updated_by:currentWho()};let res;
-  if(selectedMapId)res=await client.from(MAP_TABLE).update(payload).eq('id',selectedMapId).select().single();else res=await client.from(MAP_TABLE).insert({...payload,created_by:currentWho()}).select().single();setMediaBusy(false);
-  if(res.error){setMessage(mediaMessage,`Não foi possível salvar o mapa: ${res.error.message}`,'error');return;}selectedMapId=res.data.id;await loadMediaData(true);fillMapForm(mediaMaps.find(m=>String(m.id)===String(selectedMapId)));$('mapNumber').dataset.loadedMapId=String(selectedMapId);setMessage(mediaMessage,'Mapa salvo e sincronizado.','ok');
+  if(wasUpdate)res=await client.from(MAP_TABLE).update(payload).eq('id',selectedMapId).select().single();else res=await client.from(MAP_TABLE).insert({...payload,created_by:currentWho()}).select().single();setMediaBusy(false);
+  if(res.error){setMessage(mediaMessage,`Não foi possível salvar o mapa: ${res.error.message}`,'error');return;}selectedMapId=res.data.id;await auditEvent({eventType:wasUpdate?'MAP_UPDATE':'MAP_CREATE',programDate:start,party,cargo,summary:`${wasUpdate?'Mapa atualizado':'Mapa criado'}: ${number} • ${candidate||candidateFor(cargo,party)}`,details:{map_id:res.data.id,map_number:number,start_date:start,end_date:end,active}});await loadMediaData(true);fillMapForm(mediaMaps.find(m=>String(m.id)===String(selectedMapId)));$('mapNumber').dataset.loadedMapId=String(selectedMapId);setMessage(mediaMessage,'Mapa salvo e sincronizado.','ok');
 }
-async function deleteMap(){ const m=getSelectedMap();if(!m)return;if(!confirm(`Excluir o mapa ${m.map_number}? Os materiais e a ordem cadastrada também serão apagados.`))return;setMediaBusy(true);const res=await client.from(MAP_TABLE).delete().eq('id',m.id);setMediaBusy(false);if(res.error){setMessage(mediaMessage,`Não foi possível excluir: ${res.error.message}`,'error');return;}selectedMapId=null;await loadMediaData(true);newMap();setMessage(mediaMessage,'Mapa excluído.','ok'); }
+async function deleteMap(){
+  const m=getSelectedMap();if(!m)return;if(!confirm(`Excluir o mapa ${m.map_number}? Os materiais e a ordem cadastrada também serão apagados.`))return;setMediaBusy(true);const res=await client.from(MAP_TABLE).delete().eq('id',m.id);setMediaBusy(false);if(res.error){setMessage(mediaMessage,`Não foi possível excluir: ${res.error.message}`,'error');return;}await auditEvent({eventType:'MAP_DELETE',programDate:m.start_date,party:m.program_party,cargo:m.cargo,summary:`Mapa excluído: ${m.map_number} • ${mapCandidate(m)}`,details:{map_id:m.id,map_number:m.map_number,start_date:m.start_date,end_date:m.end_date}});selectedMapId=null;await loadMediaData(true);newMap();setMessage(mediaMessage,'Mapa excluído.','ok');
+}
 async function saveSpots(){
-  const m=getSelectedMap();if(!m){setMessage(mediaMessage,'Salve o mapa antes de cadastrar os spots.','warn');return;}const rows=[...$('spotEditor').querySelectorAll('.spot-edit-row')];const items=[];for(const row of rows){const code=row.querySelector('.spot-code').value.trim().toUpperCase(),title=row.querySelector('.spot-title').value.trim(),duration=Math.max(1,Math.min(300,Number(row.querySelector('.spot-duration').value)||30)),file=row.querySelector('.spot-file').value.trim();if(code)items.push({map_id:m.id,code,title:title||null,duration_seconds:duration,audio_filename:file||null});}
-  const codes=items.map(i=>i.code);if(new Set(codes).size!==codes.length){setMessage(mediaMessage,'Existem códigos de spot duplicados.','error');return;}const existing=mapSpots(m.id),toDelete=existing.filter(s=>!codes.includes(s.code));if(toDelete.some(s=>mediaSequences.some(q=>String(q.spot_id)===String(s.id)))&&!confirm('Um material removido já é usado na ordem de inserções. Removê-lo também apagará essas posições. Continuar?'))return;
-  setMediaBusy(true);try{if(items.length){const up=await client.from(SPOT_TABLE).upsert(items,{onConflict:'map_id,code'});if(up.error)throw up.error;}if(toDelete.length){const del=await client.from(SPOT_TABLE).delete().in('id',toDelete.map(s=>s.id));if(del.error)throw del.error;}await loadMediaData(true);renderSpotEditor(mapSpots(m.id));renderSequenceEditor();setMessage(mediaMessage,'Materiais salvos e sincronizados.','ok');}catch(e){setMessage(mediaMessage,`Erro ao salvar materiais: ${e.message}`,'error');}finally{setMediaBusy(false);}
+  const m=getSelectedMap();if(!m){setMessage(mediaMessage,'Salve o mapa antes de cadastrar os spots.','warn');return;}const rows=[...$('spotEditor').querySelectorAll('.spot-edit-row')],items=[];for(const row of rows){const code=row.querySelector('.spot-code').value.trim().toUpperCase(),title=row.querySelector('.spot-title').value.trim(),duration=Math.max(1,Math.min(300,Number(row.querySelector('.spot-duration').value)||30)),file=row.querySelector('.spot-file').value.trim();if(code)items.push({map_id:m.id,code,title:title||null,duration_seconds:duration,audio_filename:file||null});}
+  const codes=items.map(i=>i.code);if(new Set(codes).size!==codes.length){setMessage(mediaMessage,'Existem códigos de spot duplicados.','error');return;}const existing=mapSpots(m.id),toDelete=existing.filter(sp=>!codes.includes(sp.code));if(toDelete.some(sp=>mediaSequences.some(q=>String(q.spot_id)===String(sp.id)))&&!confirm('Um material removido já é usado na ordem de inserções. Removê-lo também apagará essas posições. Continuar?'))return;
+  setMediaBusy(true);try{if(items.length){const up=await client.from(SPOT_TABLE).upsert(items,{onConflict:'map_id,code'});if(up.error)throw up.error;}if(toDelete.length){const del=await client.from(SPOT_TABLE).delete().in('id',toDelete.map(sp=>sp.id));if(del.error)throw del.error;}await auditEvent({eventType:'MAP_SPOTS_SAVE',programDate:m.start_date,party:m.program_party,cargo:m.cargo,summary:`Materiais salvos no mapa ${m.map_number}: ${items.length} spot(s)`,details:{map_id:m.id,spots:items.map(x=>({code:x.code,title:x.title,duration:x.duration_seconds})),removed:toDelete.map(x=>x.code)}});await loadMediaData(true);renderSpotEditor(mapSpots(m.id));renderSequenceEditor();setMessage(mediaMessage,'Materiais salvos e sincronizados.','ok');}catch(e){setMessage(mediaMessage,`Erro ao salvar materiais: ${e.message}`,'error');}finally{setMediaBusy(false);}
 }
 async function saveSequence(){
-  const m=getSelectedMap();if(!m)return;const date=$('sequenceDate').value,block=Number($('sequenceBlock').value),selects=[...$('sequenceEditor').querySelectorAll('.sequence-spot')];const count=Math.max(0,Math.min(50,Number($('sequenceCount').value)||0));
-  if(selects.length!==count){renderSequenceEditor();return;}
-  const items=selects.filter(s=>s.value).map(s=>({map_id:m.id,sequence_date:date,block,occurrence_order:Number(s.dataset.order),spot_id:Number(s.value),created_by:currentWho(),updated_at:new Date().toISOString()}));
-  if(items.length!==selects.length&&!confirm(`Você definiu ${items.length} de ${selects.length} inserções deste mapa. Salvar mesmo assim?`))return;
-  setMediaBusy(true);try{const del=await client.from(SEQUENCE_TABLE).delete().eq('map_id',m.id).eq('sequence_date',date).eq('block',block);if(del.error)throw del.error;if(items.length){const ins=await client.from(SEQUENCE_TABLE).insert(items);if(ins.error)throw ins.error;}await loadMediaData(true);$('sequenceCount').dataset.context='';renderSequenceEditor();setMessage(mediaMessage,`Ordem de ${isoToBr(date)}, bloco ${block}, salva em tempo real.`,'ok');}catch(e){setMessage(mediaMessage,`Não foi possível salvar a ordem: ${e.message}`,'error');}finally{setMediaBusy(false);}
+  const m=getSelectedMap();if(!m)return;const date=$('sequenceDate').value,block=Number($('sequenceBlock').value),selects=[...$('sequenceEditor').querySelectorAll('.sequence-spot')],count=Math.max(0,Math.min(50,Number($('sequenceCount').value)||0));
+  if(date<m.start_date||date>m.end_date){setMessage(mediaMessage,`Não é possível salvar: ${isoToBr(date)} está fora do período deste mapa (${isoToBr(m.start_date)} a ${isoToBr(m.end_date)}).`,'error');return;}
+  if(selects.length!==count){renderSequenceEditor();return;}const items=selects.filter(sel=>sel.value).map(sel=>({map_id:m.id,sequence_date:date,block,occurrence_order:Number(sel.dataset.order),spot_id:Number(sel.value),created_by:currentWho(),updated_at:new Date().toISOString()}));if(items.length!==selects.length&&!confirm(`Você definiu ${items.length} de ${selects.length} inserções deste mapa. Salvar mesmo assim?`))return;
+  const existing=mapSequences(m.id).filter(q=>q.sequence_date===date&&Number(q.block)===block),keepOrders=new Set(items.map(x=>Number(x.occurrence_order))),toDelete=existing.filter(q=>!keepOrders.has(Number(q.occurrence_order)));
+  setMediaBusy(true);try{
+    if(items.length){const up=await client.from(SEQUENCE_TABLE).upsert(items,{onConflict:'map_id,sequence_date,block,occurrence_order'});if(up.error)throw up.error;}
+    if(toDelete.length){const del=await client.from(SEQUENCE_TABLE).delete().in('id',toDelete.map(q=>q.id));if(del.error)throw del.error;}
+    await auditEvent({eventType:'MAP_SEQUENCE_SAVE',programDate:date,block,party:m.program_party,cargo:m.cargo,summary:`Ordem salva: mapa ${m.map_number} • ${isoToBr(date)} • bloco ${block} • ${items.length} inserção(ões)`,details:{map_id:m.id,map_number:m.map_number,count:items.length,removed_orders:toDelete.map(q=>q.occurrence_order)}});await loadMediaData(true);$('sequenceCount').dataset.context='';renderSequenceEditor();setMessage(mediaMessage,`Ordem de ${isoToBr(date)}, bloco ${block}, salva sem recriar as posições já existentes.`,'ok');
+  }catch(e){setMessage(mediaMessage,`Não foi possível salvar a ordem: ${e.message}`,'error');}finally{setMediaBusy(false);}
 }
-async function clearSequence(){ const m=getSelectedMap();if(!m)return;const date=$('sequenceDate').value,block=Number($('sequenceBlock').value);if(!confirm(`Limpar a ordem de ${isoToBr(date)}, bloco ${block}?`))return;setMediaBusy(true);const res=await client.from(SEQUENCE_TABLE).delete().eq('map_id',m.id).eq('sequence_date',date).eq('block',block);setMediaBusy(false);if(res.error){setMessage(mediaMessage,`Não foi possível limpar: ${res.error.message}`,'error');return;}await loadMediaData(true);renderSequenceEditor();setMessage(mediaMessage,'Ordem removida.','ok'); }
+async function clearSequence(){
+  const m=getSelectedMap();if(!m)return;const date=$('sequenceDate').value,block=Number($('sequenceBlock').value);if(!confirm(`Limpar a ordem de ${isoToBr(date)}, bloco ${block}?`))return;setMediaBusy(true);const res=await client.from(SEQUENCE_TABLE).delete().eq('map_id',m.id).eq('sequence_date',date).eq('block',block);setMediaBusy(false);if(res.error){setMessage(mediaMessage,`Não foi possível limpar: ${res.error.message}`,'error');return;}await auditEvent({eventType:'MAP_SEQUENCE_CLEAR',programDate:date,block,party:m.program_party,cargo:m.cargo,summary:`Ordem removida: mapa ${m.map_number} • ${isoToBr(date)} • bloco ${block}`,details:{map_id:m.id,map_number:m.map_number}});await loadMediaData(true);renderSequenceEditor();setMessage(mediaMessage,'Ordem removida.','ok');
+}
 
 async function initClient(url,key){
   if(!window.supabase?.createClient)throw new Error('A biblioteca do Supabase não carregou. Verifique a internet.');
@@ -977,10 +1157,10 @@ loginForm.addEventListener('submit',async e=>{e.preventDefault();$('loginButton'
 $('logoutButton').addEventListener('click',async()=>{if(client)await client.auth.signOut();showLoggedOut();});
 function resetConfig(){if(!confirm('Trocar o projeto Supabase configurado neste navegador?'))return;if(client)client.auth.signOut();localStorage.removeItem(CONFIG_URL_KEY);localStorage.removeItem(CONFIG_API_KEY);client=null;showSetup();}
 $('resetConfigButton').addEventListener('click',resetConfig);$('changeConfig').addEventListener('click',resetConfig);
-$('tabProgramacao').addEventListener('click',()=>showView('programacao'));$('tabMapas').addEventListener('click',()=>showView('mapas'));$('tabRelatorios').addEventListener('click',()=>showView('relatorios'));
-dateFilter.addEventListener('change',applyFilters);viewFilter.addEventListener('change',applyFilters);blockFilter.addEventListener('change',applyFilters);cargoFilter.addEventListener('change',applyFilters);statusFilter.addEventListener('change',applyFilters);searchFilter.addEventListener('input',applyFilters);
-reportDateFilter.addEventListener('change',renderReports);reportViewFilter.addEventListener('change',renderReports);reportBlockFilter.addEventListener('change',renderReports);reportCargoFilter.addEventListener('change',renderReports);reportStatusFilter.addEventListener('change',renderReports);reportSearchFilter.addEventListener('input',renderReports);
-$('copyProgramFilters').addEventListener('click',syncReportFiltersFromProgram);$('exportReportXlsx').addEventListener('click',exportReportWorkbook);
+$('tabProgramacao').addEventListener('click',()=>showView('programacao'));$('tabMapas').addEventListener('click',()=>showView('mapas'));$('tabRelatorios').addEventListener('click',()=>showView('relatorios'));$('tabHistorico').addEventListener('click',()=>showView('historico'));
+dateFilter.addEventListener('change',applyFilters);viewFilter.addEventListener('change',applyFilters);blockFilter.addEventListener('change',applyFilters);cargoFilter.addEventListener('change',applyFilters);statusFilter.addEventListener('change',applyFilters);mapStatusFilter.addEventListener('change',applyFilters);searchFilter.addEventListener('input',applyFilters);
+reportDateFilter.addEventListener('change',renderReports);reportViewFilter.addEventListener('change',renderReports);reportBlockFilter.addEventListener('change',renderReports);reportCargoFilter.addEventListener('change',renderReports);reportStatusFilter.addEventListener('change',renderReports);reportMapStatusFilter.addEventListener('change',renderReports);reportOriginFilter.addEventListener('change',renderReports);reportConflictFilter.addEventListener('change',renderReports);reportSearchFilter.addEventListener('input',renderReports);
+$('copyProgramFilters').addEventListener('click',syncReportFiltersFromProgram);$('exportReportXlsx').addEventListener('click',exportReportWorkbook);auditDateFilter.addEventListener('change',renderAudit);auditTypeFilter.addEventListener('change',renderAudit);auditSearchFilter.addEventListener('input',renderAudit);$('reloadAudit').addEventListener('click',()=>loadAuditData());$('exportAuditXlsx').addEventListener('click',exportAuditWorkbook);toggleDayLock.addEventListener('click',toggleScheduleDayLock);
 $('checkVisible').addEventListener('click',()=>{const rows=visibleRows.filter(r=>!isRowDone(r));if(!rows.length){setMessage(appMessage,'Todas as linhas visíveis já estão marcadas.','info');return;}if(rows.length>25&&!confirm(`Marcar ${rows.length.toLocaleString('pt-BR')} linhas visíveis?`))return;runRowBatches(rows,true);});
 $('uncheckVisible').addEventListener('click',()=>{const rows=visibleRows.filter(r=>isRowDone(r));if(!rows.length){setMessage(appMessage,'Nenhuma linha visível está marcada.','info');return;}if(rows.length>25&&!confirm(`Desmarcar ${rows.length.toLocaleString('pt-BR')} linhas visíveis?`))return;runRowBatches(rows,false);});
 $('clearAll').addEventListener('click',clearAllSharedChecks);
@@ -988,6 +1168,7 @@ $('clearAll').addEventListener('click',clearAllSharedChecks);
 $('nextPending').addEventListener('click',()=>{const pending=visibleRows.find(r=>!isRowDone(r));if(!pending){alert('Não há linhas pendentes nos filtros atuais.');return;}const root=viewFilter.value==='schedule'?scheduleBody:tbody;const row=root.querySelector(`tr[data-rowkey="${rowDomKey(pending)}"]`);if(row){row.scrollIntoView({behavior:'smooth',block:'center'});row.querySelector('input')?.focus();}});
 $('newMapButton').addEventListener('click',newMap);$('reloadMapsButton').addEventListener('click',()=>loadMediaData());$('saveMapButton').addEventListener('click',saveMap);$('deleteMapButton').addEventListener('click',deleteMap);$('addSpotButton').addEventListener('click',()=>addSpotEditorRow({duration_seconds:30}));$('saveSpotsButton').addEventListener('click',saveSpots);$('saveSequenceButton').addEventListener('click',saveSequence);$('clearSequenceButton').addEventListener('click',clearSequence);
 $('mapCargo').addEventListener('change',()=>refreshPartyOptions());$('mapParty').addEventListener('change',updateMapCandidateInfo);$('sequenceCount').addEventListener('change',renderSequenceEditor);$('mapStart').addEventListener('change',()=>{if(!$('mapEnd').value||$('mapEnd').value<$('mapStart').value)$('mapEnd').value=$('mapStart').value;if(!selectedMapId)$('sequenceDate').value=$('mapStart').value;});$('sequenceDate').addEventListener('change',renderSequenceEditor);$('sequenceBlock').addEventListener('change',renderSequenceEditor);
+manualKnownSpot.addEventListener('change',()=>{if(manualKnownSpot.value==='')return;const idx=Number(manualKnownSpot.value),item=manualKnownSpot._known?.[idx];if(!item)return;manualSpotCode.value=item.sp.code||'';manualSpotTitle.value=item.sp.title||item.sp.code||'';manualSpotDuration.value=item.sp.duration_seconds||30;manualSpotFile.value=item.sp.audio_filename||'';});$('saveManualSpot').addEventListener('click',saveManualSpotAssignment);$('removeManualSpot').addEventListener('click',removeManualSpotAssignment);$('cancelManualSpot').addEventListener('click',closeManualSpotEditor);
 
 window.addEventListener('online',()=>{if(currentUser){setLive('Internet voltou — reconectando…','wait');clearReconnectTimer();reconnectAttempts=0;reconnectRealtime('internet voltou');}});
 window.addEventListener('offline',()=>{clearReconnectTimer();setLive('Sem internet — aguardando reconexão','off');});
@@ -1001,9 +1182,9 @@ document.addEventListener('visibilitychange',()=>{
 (function initStatic(){
 
   dateFilter.value='28/08/2026';viewFilter.value='schedule';
-  for(const opt of [...dateFilter.options].slice(1)){const o=document.createElement('option');o.value=opt.value;o.textContent=opt.textContent;reportDateFilter.appendChild(o);}
+  for(const opt of [...dateFilter.options].slice(1)){const o=document.createElement('option');o.value=opt.value;o.textContent=opt.textContent;reportDateFilter.appendChild(o);const a=document.createElement('option');a.value=opt.value;a.textContent=opt.textContent;auditDateFilter.appendChild(a);}
   reportDateFilter.value='28/08/2026';reportViewFilter.value='schedule';
-  refreshPartyOptions('BRASIL PRONTO PRA MAIS -');$('mapStart').value='2026-08-28';$('mapEnd').value='2026-08-28';$('sequenceDate').value='2026-08-28';renderSpotEditor([]);applyFilters();renderReports();
+  refreshPartyOptions('BRASIL PRONTO PRA MAIS -');$('mapStart').value='2026-08-28';$('mapEnd').value='2026-08-28';$('sequenceDate').value='2026-08-28';renderSpotEditor([]);applyFilters();renderReports();renderAudit();updateDayLockUI();
 })();
 (async function boot(){const url=localStorage.getItem(CONFIG_URL_KEY)||'',key=localStorage.getItem(CONFIG_API_KEY)||'';$('supabaseUrl').value=url;$('supabaseKey').value=key;if(!url||!key){showSetup();return;}setLive('Conectando…','wait');try{await initClient(url,key);}catch(e){showSetup();setMessage(setupMessage,`Não foi possível usar a configuração salva: ${e.message}`,'error');}})();
 </script>
