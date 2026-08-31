@@ -499,7 +499,7 @@ let client=null, currentUser=null, channel=null, checked=new Set(), checkMeta=ne
 let mediaMaps=[], mediaSpots=[], mediaSequences=[], spotAssignments=new Map(), mediaMismatches=[], operationalRows=[];
 let manualSpots=new Map(), manualSpotTarget=null, dayLocks=new Map(), lockedPositions=new Map(), auditRows=[];
 let selectedMapId=null, mediaReloadTimer=null, currentView='programacao', reportRows=[];
-let reconnectTimer=null, reconnectAttempts=0, reconnectInProgress=false, syncPromise=null, watchdogTimer=null;
+let reconnectTimer=null, reconnectAttempts=0, reconnectInProgress=false, syncPromise=null, watchdogTimer=null, channelGeneration=0;
 let blockTimeSettings=new Map(), timeOverrides=new Map(), scheduleSettingsAvailable=true, scheduleSettingsReloadTimer=null, auxiliaryReloadTimer=null, manualSpotsAvailable=true, dayLocksAvailable=true, auditAvailable=true;
 let officialDataAvailable=false, scheduleVersionsAvailable=false, scheduleVersions=[], versionsReloadTimer=null, officialReloadTimer=null;
 
@@ -626,37 +626,47 @@ function setLive(text,mode='wait'){
   }
 }
 function realtimeIsConnected(){
-  try{
-    if(client?.realtime?.isConnected)return !!client.realtime.isConnected();
-    return channel?.state==='joined';
-  }catch(_e){return false;}
+  // O socket do Supabase pode estar aberto mesmo quando o canal da aplicação falhou.
+  // Para o indicador do site, só consideramos Realtime ativo quando ESTE canal está joined.
+  try{return !!channel && channel.state==='joined';}catch(_e){return false;}
 }
 function clearReconnectTimer(){ if(reconnectTimer){clearTimeout(reconnectTimer);reconnectTimer=null;} }
-function scheduleReconnect(reason=''){
+function scheduleReconnect(reason='',force=false){
   if(!client||!currentUser||reconnectInProgress)return;
   if(typeof navigator!=='undefined'&&navigator.onLine===false){setLive('Sem internet — aguardando reconexão','off');return;}
+  if(realtimeIsConnected()&&!force){setLive('Tempo real conectado','live');return;}
   clearReconnectTimer();
   const delays=[1000,2000,5000,10000,15000,30000];
   const delay=delays[Math.min(reconnectAttempts,delays.length-1)];
   reconnectAttempts++;
   setLive(`Reconectando em ${Math.round(delay/1000)}s…`,'wait');
-  reconnectTimer=setTimeout(()=>reconnectRealtime(reason),delay);
+  reconnectTimer=setTimeout(()=>reconnectRealtime(reason,force),delay);
 }
-async function reconnectRealtime(reason=''){
+async function reconnectRealtime(reason='',force=false){
   if(!client||!currentUser||reconnectInProgress)return;
   if(typeof navigator!=='undefined'&&navigator.onLine===false){setLive('Sem internet — aguardando reconexão','off');return;}
+  if(realtimeIsConnected()&&!force){setLive('Tempo real conectado','live');return;}
   reconnectInProgress=true; clearReconnectTimer(); setLive('Reconectando tempo real…','wait');
+  let retryReason='';
   try{
-    if(client.realtime?.connect&&!realtimeIsConnected())client.realtime.connect();
-    await subscribeRealtime();
+    if(client.realtime?.connect){
+      let socketConnected=false;
+      try{socketConnected=!!client.realtime.isConnected?.();}catch(_e){}
+      if(!socketConnected)client.realtime.connect();
+    }
+    await subscribeRealtime({force});
     await Promise.all([loadChecks(),loadMediaData(true),loadMediaChecks(),loadScheduleTimeSettings(true),loadManualSpots(true),loadDayLocks(true),loadAuditData(true)]);
     reconnectAttempts=0; setLive('Tempo real conectado','live');
     if(reason)console.info('[Realtime] reconectado:',reason);
   }catch(e){
     console.warn('[Realtime] falha ao reconectar:',e);
     setLive('Falha no tempo real','off');
-    scheduleReconnect(e?.message||reason||'falha');
-  }finally{reconnectInProgress=false;}
+    retryReason=e?.message||reason||'falha';
+  }finally{
+    reconnectInProgress=false;
+  }
+  // Agenda a próxima tentativa somente depois de liberar reconnectInProgress.
+  if(retryReason)scheduleReconnect(retryReason,true);
 }
 function startRealtimeWatchdog(){
   if(watchdogTimer)clearInterval(watchdogTimer);
@@ -1078,14 +1088,22 @@ async function loadScheduleTimeSettings(silent=false){
   if(err){scheduleSettingsAvailable=false;timeOverrides=new Map();buildScheduleAssignments();applyFilters();if(!silent)setMessage(appMessage,`Editor de horários indisponível. Execute o SQL da atualização no Supabase. Detalhe: ${err.message}`,'warn');return false;}
   scheduleSettingsAvailable=true;timeOverrides=new Map();for(const row of or.data||[]){const m=Number(row.scheduled_minutes);if(row.row_key&&Number.isInteger(m))timeOverrides.set(String(row.row_key),m);}buildScheduleAssignments();applyFilters();return true;
 }
-async function subscribeRealtime(){
+async function subscribeRealtime({force=false}={}){
   if(!client||!currentUser)throw new Error('Usuário não autenticado.');
-  if(channel){try{await client.removeChannel(channel);}catch(_e){}channel=null;}
+  if(realtimeIsConnected()&&!force)return true;
+
+  // Cada substituição recebe uma geração. Eventos CLOSED do canal antigo são ignorados,
+  // evitando que uma remoção intencional dispare outra reconexão em cascata.
+  const myGeneration=++channelGeneration;
+  const oldChannel=channel;
+  channel=null;
+  if(oldChannel){try{await client.removeChannel(oldChannel);}catch(_e){}}
+
   return new Promise((resolve,reject)=>{
     let settled=false;
     const finish=(fn,value)=>{if(settled)return;settled=true;clearTimeout(joinTimeout);fn(value);};
     const joinTimeout=setTimeout(()=>finish(reject,new Error('Tempo real demorou para conectar.')),20000);
-    channel=client.channel('programacao-eleitoral-live')
+    const newChannel=client.channel('programacao-eleitoral-live')
       .on('postgres_changes',{event:'*',schema:'public',table:CHECK_TABLE},updateFromRealtime)
       .on('postgres_changes',{event:'*',schema:'public',table:MEDIA_CHECK_TABLE},updateMediaCheckRealtime)
       .on('postgres_changes',{event:'*',schema:'public',table:MAP_TABLE},scheduleMediaReload)
@@ -1099,16 +1117,18 @@ async function subscribeRealtime(){
       .on('postgres_changes',{event:'*',schema:'public',table:OFFICIAL_TABLE},scheduleOfficialReload)
       .on('postgres_changes',{event:'*',schema:'public',table:VERSION_TABLE},scheduleVersionsReload)
       .subscribe(status=>{
+        if(myGeneration!==channelGeneration)return;
         if(status==='SUBSCRIBED'){
           reconnectAttempts=0; setLive('Tempo real conectado','live'); finish(resolve,true);
         }else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){
           setLive('Falha no tempo real','off');
-          if(!settled)finish(reject,new Error(`Canal Realtime: ${status}`)); else scheduleReconnect(status);
+          if(!settled)finish(reject,new Error(`Canal Realtime: ${status}`)); else scheduleReconnect(status,true);
         }else if(status==='CLOSED'){
           setLive('Tempo real desconectado','off');
-          if(!settled)finish(reject,new Error('Canal Realtime fechado.')); else scheduleReconnect(status);
+          if(!settled)finish(reject,new Error('Canal Realtime fechado.')); else scheduleReconnect(status,true);
         }
       });
+    channel=newChannel;
   });
 }
 async function loadChecks(){ setMessage(appMessage,'Carregando marcações compartilhadas…','info'); const {data,error}=await client.from(CHECK_TABLE).select('line_id,checked_at,checked_by').order('line_id'); if(error){setMessage(appMessage,`Erro ao carregar os checks: ${error.message}`,'error');return false;} checked=new Set();checkMeta=new Map();for(const row of data||[]){const id=Number(row.line_id);if(Number.isInteger(id)){checked.add(id);checkMeta.set(id,{checked_at:row.checked_at,checked_by:row.checked_by});}} setMessage(appMessage,'','info');applyFilters();return true; }
@@ -1346,7 +1366,7 @@ async function initClient(url,key){
         if(status==='timeout'||status==='disconnected'||status==='error'){
           console.warn('[Realtime] heartbeat:',status);
           setLive('Conexão instável — reconectando…','wait');
-          scheduleReconnect(`heartbeat ${status}`);
+          scheduleReconnect(`heartbeat ${status}`,true);
         }
       }
     }
@@ -1382,12 +1402,18 @@ manualKnownSpot.addEventListener('change',()=>{if(manualKnownSpot.value==='')ret
   $('createVersionButton').addEventListener('click',()=>{if(!dateFilter.value){setMessage($('versionMessage'),'Selecione uma data específica.','warn');return;}createScheduleVersion(dateFilter.value,$('versionLabel').value.trim());});$('reloadVersionsButton').addEventListener('click',()=>loadScheduleVersions());
   $('downloadMapTemplate').addEventListener('click',downloadMapTemplate);$('importMapSpreadsheet').addEventListener('click',importMapSpreadsheet);$('downloadOfficialTemplate').addEventListener('click',downloadOfficialTemplate);$('importOfficialSpreadsheet').addEventListener('click',importOfficialSpreadsheet);
   $('openMapPdf').addEventListener('click',()=>{const p=$('openMapPdf').dataset.path;if(p)openStorageAsset(MAP_BUCKET,p);});
-window.addEventListener('online',()=>{if(currentUser){setLive('Internet voltou — reconectando…','wait');clearReconnectTimer();reconnectAttempts=0;reconnectRealtime('internet voltou');}});
+window.addEventListener('online',()=>{if(currentUser){setLive('Internet voltou — reconectando…','wait');clearReconnectTimer();reconnectAttempts=0;reconnectRealtime('internet voltou',true);}});
 window.addEventListener('offline',()=>{clearReconnectTimer();setLive('Sem internet — aguardando reconexão','off');});
 document.addEventListener('visibilitychange',()=>{
   if(document.visibilityState==='visible'&&currentUser){
-    clearReconnectTimer();reconnectAttempts=0;
-    setTimeout(()=>reconnectRealtime('aba voltou ao primeiro plano'),150);
+    // Voltar para a aba não deve derrubar um canal saudável.
+    // Só reconectamos se o canal da aplicação realmente não estiver joined.
+    if(realtimeIsConnected()){
+      clearReconnectTimer();reconnectAttempts=0;setLive('Tempo real conectado','live');
+    }else{
+      clearReconnectTimer();reconnectAttempts=0;
+      setTimeout(()=>reconnectRealtime('aba voltou ao primeiro plano'),250);
+    }
   }
 });
 
