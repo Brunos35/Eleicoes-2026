@@ -81,8 +81,10 @@
   .map-card-top { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
   .map-card-title { min-width:0; font-size:13px; line-height:1.2; font-weight:900; color:#1f3347; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .map-status { flex:none; display:inline-flex; align-items:center; gap:4px; padding:2px 6px; border-radius:999px; font-size:9px; font-weight:900; text-transform:uppercase; letter-spacing:.04em; }
-  .map-status.active { background:#e7f5ee; color:#176047; }
-  .map-status.inactive { background:#eef1f4; color:#65717d; }
+  .map-status.current { background:#e7f5ee; color:#176047; }
+  .map-status.ended { background:#eef1f4; color:#65717d; }
+  .map-status.future { background:#e8f1fb; color:#265f92; }
+  .map-status.inactive { background:#fdecec; color:#9b3434; }
   .map-card-meta { margin-top:4px; color:#657587; font-size:10.5px; line-height:1.35; }
   .map-card-meta strong { color:#46586a; font-weight:800; }
   .map-party-line { margin-top:4px; color:#5c6d7e; font-size:10.5px; line-height:1.3; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
@@ -342,7 +344,7 @@
             <div class="map-list-toolbar">
               <div class="map-search-wrap"><input id="mapListSearch" type="search" placeholder="Buscar candidato, partido ou mapa…" aria-label="Buscar mapas cadastrados"></div>
               <select id="mapListCargo" aria-label="Filtrar mapas por cargo"><option value="">Todos os cargos</option><option>Presidente</option><option>Governador</option><option>Senador</option><option>Deputado Federal</option><option>Deputado Distrital</option></select>
-              <select id="mapListStatus" aria-label="Filtrar mapas por status"><option value="">Ativos e inativos</option><option value="active">Somente ativos</option><option value="inactive">Somente inativos</option></select>
+              <select id="mapListStatus" aria-label="Filtrar mapas por status"><option value="">Todos os status</option><option value="current">Vigentes</option><option value="future">Futuros</option><option value="ended">Encerrados</option><option value="inactive">Inativos</option></select>
             </div>
             <div class="map-list" id="mapList" aria-label="Mapas cadastrados"></div>
           </div>
@@ -359,7 +361,7 @@
               <div><label for="mapTitle">Título / identificação</label><input id="mapTitle" type="text" placeholder="Ex.: Agosto - mapa 28 a 31"></div>
               <div><label for="mapStart">Data inicial</label><input id="mapStart" type="date"></div>
               <div><label for="mapEnd">Data final</label><input id="mapEnd" type="date"></div>
-              <div><label>Status</label><div class="toggle-line"><input id="mapActive" type="checkbox" checked><span>Mapa ativo</span></div></div>
+              <div><label>Habilitação</label><div class="toggle-line"><input id="mapActive" type="checkbox" checked><span>Usar este mapa na programação</span></div></div>
             </div>
             <div><label for="mapNotes">Observações</label><textarea id="mapNotes" placeholder="Opcional"></textarea></div>
             <div class="file-inline"><div><label for="mapPdfUpload">PDF original do mapa (opcional)</label><input id="mapPdfUpload" type="file" accept="application/pdf"></div><button type="button" id="openMapPdf" disabled>📄 Abrir PDF anexado</button></div>
@@ -1222,21 +1224,29 @@ function refreshPartyOptions(preferred=''){ const cargo=$('mapCargo').value;cons
 function getSelectedMap(){ return mediaMaps.find(m=>String(m.id)===String(selectedMapId))||null; }
 function mapSpots(mapId){ return mediaSpots.filter(s=>String(s.map_id)===String(mapId)).sort((a,b)=>a.code.localeCompare(b.code,'pt-BR')); }
 function mapSequences(mapId){ return mediaSequences.filter(s=>String(s.map_id)===String(mapId)); }
+function mapLifecycleStatus(m){
+  if(!m?.active)return {key:'inactive',label:'Inativo',rank:3};
+  const today=brToIso(localTodayBr());
+  if(m.start_date&&today<m.start_date)return {key:'future',label:'Futuro',rank:1};
+  if(m.end_date&&today>m.end_date)return {key:'ended',label:'Encerrado',rank:2};
+  return {key:'current',label:'Vigente',rank:0};
+}
 function renderMapList(){
   const box=$('mapList'),summary=$('mapListSummary'),search=$('mapListSearch'),cargoFilter=$('mapListCargo'),statusFilter=$('mapListStatus');
   box.textContent='';
   const q=normalize(search?.value||''),cargo=cargoFilter?.value||'',status=statusFilter?.value||'';
   const filtered=mediaMaps.filter(m=>{
     if(cargo&&m.cargo!==cargo)return false;
-    if(status==='active'&&!m.active)return false;
-    if(status==='inactive'&&m.active)return false;
+    const lifecycle=mapLifecycleStatus(m);
+    if(status&&lifecycle.key!==status)return false;
     if(q){
       const hay=normalize([m.map_number,m.cargo,m.program_party,mapCandidate(m),m.title,m.source_file,isoToBr(m.start_date),isoToBr(m.end_date)].join(' '));
       if(!hay.includes(q))return false;
     }
     return true;
   }).sort((a,b)=>{
-    if(!!a.active!==!!b.active)return a.active?-1:1;
+    const sa=mapLifecycleStatus(a),sb=mapLifecycleStatus(b);
+    if(sa.rank!==sb.rank)return sa.rank-sb.rank;
     if(a.start_date!==b.start_date)return String(b.start_date||'').localeCompare(String(a.start_date||''));
     const ca=CARGO_ORDER.indexOf(a.cargo),cb=CARGO_ORDER.indexOf(b.cargo);
     if(ca!==cb)return (ca<0?99:ca)-(cb<0?99:cb);
@@ -1255,7 +1265,8 @@ function renderMapList(){
       const b=document.createElement('button');b.type='button';b.className='map-card'+(String(m.id)===String(selectedMapId)?' active':'');
       const candidate=mapCandidate(m),spots=mapSpots(m.id).length,seqs=mapSequences(m.id).length;
       b.title=m.source_file?`Arquivo fonte: ${m.source_file}`:`Mapa ${m.map_number||'sem número'}`;
-      b.innerHTML=`<div class="map-card-top"><div class="map-card-title">${escapeHtml(candidate||'Sem identificação')}</div><span class="map-status ${m.active?'active':'inactive'}">${m.active?'Ativo':'Inativo'}</span></div><div class="map-card-meta"><strong>${escapeHtml(m.map_number||'Sem número')}</strong> · ${isoToBr(m.start_date)}${m.end_date&&m.end_date!==m.start_date?` → ${isoToBr(m.end_date)}`:''}</div><div class="map-party-line">${escapeHtml(m.program_party)}</div><div class="map-card-footer"><span class="map-mini-tag">${spots} spot${spots===1?'':'s'}</span><span class="map-mini-tag">${seqs} inserç${seqs===1?'ão':'ões'}</span>${m.source_storage_path?'<span class="map-mini-tag">📄 PDF</span>':''}</div>`;
+      const lifecycle=mapLifecycleStatus(m);
+      b.innerHTML=`<div class="map-card-top"><div class="map-card-title">${escapeHtml(candidate||'Sem identificação')}</div><span class="map-status ${lifecycle.key}">${lifecycle.label}</span></div><div class="map-card-meta"><strong>${escapeHtml(m.map_number||'Sem número')}</strong> · ${isoToBr(m.start_date)}${m.end_date&&m.end_date!==m.start_date?` → ${isoToBr(m.end_date)}`:''}</div><div class="map-party-line">${escapeHtml(m.program_party)}</div><div class="map-card-footer"><span class="map-mini-tag">${spots} spot${spots===1?'':'s'}</span><span class="map-mini-tag">${seqs} inserç${seqs===1?'ão':'ões'}</span>${m.source_storage_path?'<span class="map-mini-tag">📄 PDF</span>':''}</div>`;
       b.addEventListener('click',()=>{selectedMapId=m.id;fillMapForm(m);renderMapWorkspace();});box.appendChild(b);
     }
   }
@@ -1413,7 +1424,7 @@ async function exportClosingWorkbook(){
   const br=(currentView==='relatorios'?reportDateFilter.value:dateFilter.value)||dateFilter.value||reportDateFilter.value;if(!br){setMessage(currentView==='relatorios'?reportMessage:appMessage,'Selecione uma data específica para gerar o fechamento.','warn');return;}if(!window.XLSX)return;const rows=closingRowsForDate(br),done=rows.filter(isRowDone).length,pending=rows.length-done,missing=rows.filter(r=>mapStatusForRow(r)==='absent').length,radio=rows.filter(r=>spotOriginForRow(r)==='radio').length,conflicts=rows.filter(reportHasConflict).length;
   const program=rows.map(r=>{const a=scheduleAssignments.get(rowDomKey(r)),spot=effectiveSpotForRow(r),meta=rowCheckMeta(r);return{'Data':r.date,'Horário':a?.suggestedTime||'','Bloco':r.block,'Sequência':r.seq||'','Partido / Coligação':r.party,'Candidato(s)':candidateForRow(r),'Cargo':r.cargo,'Spot':spot?.title||spot?.code||'','Código':spot?.code||'','Origem do spot':spotOriginLabel(spotOriginForRow(r)),'Mapa de mídia':mapStatusLabel(mapStatusForRow(r)),'Programação':isRowDone(r)?'Programado':'Pendente','Conflito':reportConflictLabel(r),'Programado por':isRowDone(r)?(meta?.checked_by||''):'','Quando':isRowDone(r)?formatWhen(meta?.checked_at):''};});
   const iso=brToIso(br);let dayAudit=auditRows.filter(a=>a.program_date===iso),dayVersions=scheduleVersions.filter(v=>v.program_date===iso);if(client){const [ar,vr]=await Promise.all([client.from(AUDIT_TABLE).select('*').eq('program_date',iso).order('created_at',{ascending:true}).limit(5000),client.from(VERSION_TABLE).select('*').eq('program_date',iso).order('version_no',{ascending:true}).limit(200)]);if(!ar.error)dayAudit=ar.data||[];if(!vr.error)dayVersions=vr.data||[];}
-  const history=dayAudit.map(a=>({'Quando':formatWhen(a.created_at),'Usuário':a.actor,'Tipo':auditTypeLabel(a.event_type),'Resumo':a.summary,'Detalhes':JSON.stringify(a.details||{})})),versions=dayVersions.map(v=>({'Versão':`v${v.version_no}`,'Nome':v.label,'Criada por':v.created_by,'Quando':formatWhen(v.created_at)})),maps=mediaMaps.filter(m=>m.start_date<=iso&&m.end_date>=iso).map(m=>({'Mapa':m.map_number,'Cargo':m.cargo,'Partido / Coligação':m.program_party,'Candidato':mapCandidate(m),'Status':m.active?'Ativo':'Inativo','PDF anexado':m.source_storage_path?'Sim':'Não'}));
+  const history=dayAudit.map(a=>({'Quando':formatWhen(a.created_at),'Usuário':a.actor,'Tipo':auditTypeLabel(a.event_type),'Resumo':a.summary,'Detalhes':JSON.stringify(a.details||{})})),versions=dayVersions.map(v=>({'Versão':`v${v.version_no}`,'Nome':v.label,'Criada por':v.created_by,'Quando':formatWhen(v.created_at)})),maps=mediaMaps.filter(m=>m.start_date<=iso&&m.end_date>=iso).map(m=>({'Mapa':m.map_number,'Cargo':m.cargo,'Partido / Coligação':m.program_party,'Candidato':mapCandidate(m),'Status':mapLifecycleStatus(m).label,'PDF anexado':m.source_storage_path?'Sim':'Não'}));
   const resumo=[['Fechamento da Programação Eleitoral',br],['Gerado em',new Date().toLocaleString('pt-BR')],['Posições',rows.length],['Programadas',done],['Pendentes',pending],['Mapas ausentes',missing],['Spots definidos pela rádio',radio],['Conflitos / atenção',conflicts],['Grade travada',isDayLockedBr(br)?'Sim':'Não'],['Fonte da programação oficial',officialDataAvailable?'Supabase':'Contingência interna']];const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(resumo),'Resumo');XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(program),'Programação');XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(history),'Histórico');XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(versions),'Versões');XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(maps),'Mapas');XLSX.writeFile(wb,`fechamento-programacao-${safeFilePart(br)}.xlsx`);
 }
 
