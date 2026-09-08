@@ -1226,8 +1226,44 @@ async function subscribeRealtime({force=false}={}){
     channel=newDataChannel;
   });
 }
-async function loadChecks(){ setMessage(appMessage,'Carregando marcações compartilhadas…','info'); const {data,error}=await client.from(CHECK_TABLE).select('line_id,checked_at,checked_by').order('line_id'); if(error){setMessage(appMessage,`Erro ao carregar os checks: ${error.message}`,'error');return false;} checked=new Set();checkMeta=new Map();for(const row of data||[]){const id=Number(row.line_id);if(Number.isInteger(id)){checked.add(id);checkMeta.set(id,{checked_at:row.checked_at,checked_by:row.checked_by});}} setMessage(appMessage,'','info');applyFilters();return true; }
-async function loadMediaChecks(){const {data,error}=await client.from(MEDIA_CHECK_TABLE).select('position_key,legacy_sequence_id,checked_at,checked_by').order('position_key');if(error){checkedMedia=new Set();mediaCheckMeta=new Map();return false;}checkedMedia=new Set();mediaCheckMeta=new Map();for(const row of data||[]){const id=String(row.position_key||'');if(id){checkedMedia.add(id);mediaCheckMeta.set(id,{checked_at:row.checked_at,checked_by:row.checked_by,legacy_sequence_id:row.legacy_sequence_id});}}applyFilters();return true;}
+async function fetchAllCheckRows(table,columns,orderColumn){
+  const pageSize=1000,all=[];let from=0;
+  while(true){
+    const {data,error}=await client.from(table).select(columns).order(orderColumn).range(from,from+pageSize-1);
+    if(error)throw error;
+    const page=data||[];all.push(...page);
+    if(page.length<pageSize)break;
+    from+=pageSize;
+    if(from>100000)throw new Error(`Quantidade inesperada de registros em ${table}.`);
+  }
+  return all;
+}
+async function loadChecks(){
+  setMessage(appMessage,'Carregando marcações compartilhadas…','info');
+  try{
+    const data=await fetchAllCheckRows(CHECK_TABLE,'line_id,checked_at,checked_by','line_id');
+    // Só troca o estado local depois que TODAS as páginas foram carregadas.
+    // Assim uma falha no meio da paginação nunca zera checks que já estavam na tela.
+    const nextChecked=new Set(),nextMeta=new Map();
+    for(const row of data){const id=Number(row.line_id);if(Number.isInteger(id)){nextChecked.add(id);nextMeta.set(id,{checked_at:row.checked_at,checked_by:row.checked_by});}}
+    checked=nextChecked;checkMeta=nextMeta;
+    setMessage(appMessage,'','info');applyFilters();return true;
+  }catch(error){
+    setMessage(appMessage,`Erro ao carregar os checks: ${error.message}`,'error');
+    return false;
+  }
+}
+async function loadMediaChecks(){
+  try{
+    const data=await fetchAllCheckRows(MEDIA_CHECK_TABLE,'position_key,legacy_sequence_id,checked_at,checked_by','position_key');
+    const nextCheckedMedia=new Set(),nextMediaMeta=new Map();
+    for(const row of data){const id=String(row.position_key||'');if(id){nextCheckedMedia.add(id);nextMediaMeta.set(id,{checked_at:row.checked_at,checked_by:row.checked_by,legacy_sequence_id:row.legacy_sequence_id});}}
+    checkedMedia=nextCheckedMedia;mediaCheckMeta=nextMediaMeta;applyFilters();return true;
+  }catch(error){
+    console.warn('[Checks de mídia] falha ao carregar todas as páginas:',error?.message||error);
+    return false;
+  }
+}
 async function loadMediaData(silent=false){
   if(checkSaveDepth>0||busy){mediaReloadPending=true;return true;}
   if(!silent)setMessage(mediaMessage,'Carregando mapas de mídia…','info');
