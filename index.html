@@ -526,7 +526,7 @@ const auditDateFilter=$('auditDateFilter'), auditTypeFilter=$('auditTypeFilter')
 const manualSpotDialog=$('manualSpotDialog'), manualSpotContext=$('manualSpotContext'), manualKnownSpot=$('manualKnownSpot'), manualSpotCode=$('manualSpotCode'), manualSpotTitle=$('manualSpotTitle'), manualSpotDuration=$('manualSpotDuration'), manualSpotFile=$('manualSpotFile'), manualSpotMessage=$('manualSpotMessage');
 const scheduleTimeEditor=null, scheduleTimeMessage=null;
 
-let client=null, currentUser=null, channel=null, checked=new Set(), checkMeta=new Map(), checkedMedia=new Set(), mediaCheckMeta=new Map(), visibleRows=[], busy=false;
+let client=null, currentUser=null, channel=null, checkChannel=null, checked=new Set(), checkMeta=new Map(), checkedMedia=new Set(), mediaCheckMeta=new Map(), visibleRows=[], busy=false;
 let mediaMaps=[], mediaSpots=[], mediaSequences=[], spotAssignments=new Map(), mediaMismatches=[], operationalRows=[];
 let manualSpots=new Map(), manualSpotTarget=null, dayLocks=new Map(), lockedPositions=new Map(), auditRows=[];
 let selectedMapId=null, mediaReloadTimer=null, mediaReloadPending=false, checkSaveDepth=0, currentView='programacao', reportRows=[];
@@ -657,9 +657,12 @@ function setLive(text,mode='wait'){
   }
 }
 function realtimeIsConnected(){
-  // O socket do Supabase pode estar aberto mesmo quando o canal da aplicação falhou.
-  // Para o indicador do site, só consideramos Realtime ativo quando ESTE canal está joined.
-  try{return !!channel && channel.state==='joined';}catch(_e){return false;}
+  // Checks ficam em um canal dedicado para não competirem com atualizações pesadas de mapas.
+  // Consideramos a sincronização plenamente ativa somente quando os dois canais estão joined.
+  try{return !!channel && channel.state==='joined' && !!checkChannel && checkChannel.state==='joined';}catch(_e){return false;}
+}
+function checksRealtimeIsConnected(){
+  try{return !!checkChannel && checkChannel.state==='joined';}catch(_e){return false;}
 }
 function clearReconnectTimer(){ if(reconnectTimer){clearTimeout(reconnectTimer);reconnectTimer=null;} }
 function scheduleReconnect(reason='',force=false){
@@ -809,6 +812,7 @@ function showLoggedOut(){
   clearReconnectTimer(); reconnectAttempts=0; reconnectInProgress=false;
   if(watchdogTimer){clearInterval(watchdogTimer);watchdogTimer=null;}
   if(channel&&client){client.removeChannel(channel);channel=null;}
+  if(checkChannel&&client){client.removeChannel(checkChannel);checkChannel=null;}
 }
 function showSetup(){
   currentUser=null; setupPanel.classList.remove('hidden'); loginPanel.classList.add('hidden'); accountPanel.classList.add('hidden'); navPanel.classList.add('hidden'); programacaoView.classList.add('hidden'); mapasView.classList.add('hidden'); relatoriosView.classList.add('hidden'); historicoView.classList.add('hidden'); setLive('Supabase não configurado','off');
@@ -1054,7 +1058,30 @@ function renderAudit(){
 async function loadAuditData(silent=false){
   if(!client)return false;const {data,error}=await client.from(AUDIT_TABLE).select('*').order('created_at',{ascending:false}).limit(3000);if(error){auditRows=[];if(!silent)setMessage(auditMessage,`Histórico indisponível: ${error.message}`,'warn');renderAudit();return false;}auditRows=data||[];if(!silent)setMessage(auditMessage,'','info');renderAudit();return true;
 }
-function updateAuditRealtime(payload){if(payload.eventType!=='INSERT'||!payload.new)return;if(auditRows.some(a=>String(a.id)===String(payload.new.id)))return;auditRows.unshift(payload.new);if(auditRows.length>3000)auditRows.length=3000;if(currentView==='historico')renderAudit();}
+function updateAuditRealtime(payload){
+  if(payload.eventType!=='INSERT'||!payload.new)return;
+  const a=payload.new;
+  if(!auditRows.some(x=>String(x.id)===String(a.id))){auditRows.unshift(a);if(auditRows.length>3000)auditRows.length=3000;}
+  // Segunda via de segurança para checks oficiais. Se, por qualquer motivo, o evento de
+  // programacao_checks for perdido, o evento de auditoria confirma imediatamente o estado.
+  if((a.event_type==='PROGRAM_SET'||a.event_type==='PROGRAM_UNSET')&&/^o\d+$/.test(String(a.row_key||''))){
+    const id=Number(String(a.row_key).slice(1));
+    if(Number.isInteger(id)){
+      if(a.event_type==='PROGRAM_SET'){
+        checked.add(id);checkMeta.set(id,{checked_at:a.created_at||new Date().toISOString(),checked_by:a.actor||'usuário'});
+      }else{
+        checked.delete(id);checkMeta.delete(id);
+      }
+      if(statusFilter.value)applyFilters();else{applyRowStateByRef('official',id);updateStats();updateMediaProgramWarning();if(currentView==='relatorios')renderReports();}
+    }
+  }
+  if(a.event_type==='CLEAR_ALL_CHECKS'){
+    // A ação de limpar tudo é rara; neste caso fazemos uma reconciliação explícita.
+    loadChecks().catch(e=>console.warn('[Checks] falha ao reconciliar após limpeza:',e?.message||e));
+    loadMediaChecks().catch(e=>console.warn('[Checks] falha ao reconciliar mídia após limpeza:',e?.message||e));
+  }
+  if(currentView==='historico')renderAudit();
+}
 function exportAuditWorkbook(){
   const rows=auditFilteredRows();if(!rows.length){setMessage(auditMessage,'Não há registros para exportar.','warn');return;}if(!window.XLSX){setMessage(auditMessage,'A biblioteca de Excel não carregou.','error');return;}const data=rows.map(a=>({'Quando':formatWhen(a.created_at),'Usuário':a.actor||'','Tipo':auditTypeLabel(a.event_type),'Data':a.program_date?isoToBr(a.program_date):'','Bloco':a.block||'','Partido / Coligação':a.party||'','Cargo':a.cargo||'','Resumo':a.summary||'','Detalhes':JSON.stringify(a.details||{})}));const ws=XLSX.utils.json_to_sheet(data);ws['!autofilter']={ref:ws['!ref']};ws['!cols']=[{wch:18},{wch:28},{wch:30},{wch:12},{wch:8},{wch:40},{wch:20},{wch:55},{wch:65}];const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Histórico');XLSX.writeFile(wb,`historico-programacao-${safeFilePart(auditDateFilter.value)||'todas-as-datas'}.xlsx`);setMessage(auditMessage,`Histórico exportado com ${rows.length.toLocaleString('pt-BR')} registro(s).`,'ok');
 }
@@ -1142,20 +1169,47 @@ async function subscribeRealtime({force=false}={}){
   if(!client||!currentUser)throw new Error('Usuário não autenticado.');
   if(realtimeIsConnected()&&!force)return true;
 
-  // Cada substituição recebe uma geração. Eventos CLOSED do canal antigo são ignorados,
-  // evitando que uma remoção intencional dispare outra reconexão em cascata.
+  // Há dois canais independentes:
+  // 1) checks: caminho crítico e leve, recebe somente marcações;
+  // 2) dados: mapas, horários, histórico e demais atualizações.
+  // Assim um lote grande de mapas não interrompe a sincronização dos checks.
   const myGeneration=++channelGeneration;
-  const oldChannel=channel;
-  channel=null;
-  if(oldChannel){try{await client.removeChannel(oldChannel);}catch(_e){}}
+  const oldDataChannel=channel,oldCheckChannel=checkChannel;
+  channel=null;checkChannel=null;
+  if(oldDataChannel){try{await client.removeChannel(oldDataChannel);}catch(_e){}}
+  if(oldCheckChannel){try{await client.removeChannel(oldCheckChannel);}catch(_e){}}
 
   return new Promise((resolve,reject)=>{
-    let settled=false;
-    const finish=(fn,value)=>{if(settled)return;settled=true;clearTimeout(joinTimeout);fn(value);};
+    let settled=false,dataJoined=false,checksJoined=false;
     const joinTimeout=setTimeout(()=>finish(reject,new Error('Tempo real demorou para conectar.')),20000);
-    const newChannel=client.channel('programacao-eleitoral-live')
+    const finish=(fn,value)=>{if(settled)return;settled=true;clearTimeout(joinTimeout);fn(value);};
+    const maybeReady=()=>{
+      if(myGeneration!==channelGeneration||settled)return;
+      if(dataJoined&&checksJoined){reconnectAttempts=0;setLive('Tempo real conectado','live');finish(resolve,true);}
+    };
+    const handleStatus=(kind,status)=>{
+      if(myGeneration!==channelGeneration)return;
+      if(status==='SUBSCRIBED'){
+        if(kind==='checks')checksJoined=true;else dataJoined=true;
+        maybeReady();return;
+      }
+      if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){
+        setLive(kind==='checks'?'Falha na sincronização dos checks':'Falha no tempo real','off');
+        const err=new Error(`${kind==='checks'?'Canal de checks':'Canal de dados'}: ${status}`);
+        if(!settled)finish(reject,err);else scheduleReconnect(status,true);
+      }else if(status==='CLOSED'){
+        setLive(kind==='checks'?'Checks desconectados':'Tempo real desconectado','off');
+        const err=new Error(`${kind==='checks'?'Canal de checks':'Canal de dados'} fechado.`);
+        if(!settled)finish(reject,err);else scheduleReconnect(status,true);
+      }
+    };
+
+    const newCheckChannel=client.channel('programacao-eleitoral-checks-live')
       .on('postgres_changes',{event:'*',schema:'public',table:CHECK_TABLE},updateFromRealtime)
       .on('postgres_changes',{event:'*',schema:'public',table:MEDIA_CHECK_TABLE},updateMediaCheckRealtime)
+      .subscribe(status=>handleStatus('checks',status));
+
+    const newDataChannel=client.channel('programacao-eleitoral-data-live')
       .on('postgres_changes',{event:'*',schema:'public',table:MAP_TABLE},scheduleMediaReload)
       .on('postgres_changes',{event:'*',schema:'public',table:SPOT_TABLE},scheduleMediaReload)
       .on('postgres_changes',{event:'*',schema:'public',table:SEQUENCE_TABLE},scheduleMediaReload)
@@ -1166,19 +1220,10 @@ async function subscribeRealtime({force=false}={}){
       .on('postgres_changes',{event:'INSERT',schema:'public',table:AUDIT_TABLE},updateAuditRealtime)
       .on('postgres_changes',{event:'*',schema:'public',table:OFFICIAL_TABLE},scheduleOfficialReload)
       .on('postgres_changes',{event:'*',schema:'public',table:VERSION_TABLE},scheduleVersionsReload)
-      .subscribe(status=>{
-        if(myGeneration!==channelGeneration)return;
-        if(status==='SUBSCRIBED'){
-          reconnectAttempts=0; setLive('Tempo real conectado','live'); finish(resolve,true);
-        }else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){
-          setLive('Falha no tempo real','off');
-          if(!settled)finish(reject,new Error(`Canal Realtime: ${status}`)); else scheduleReconnect(status,true);
-        }else if(status==='CLOSED'){
-          setLive('Tempo real desconectado','off');
-          if(!settled)finish(reject,new Error('Canal Realtime fechado.')); else scheduleReconnect(status,true);
-        }
-      });
-    channel=newChannel;
+      .subscribe(status=>handleStatus('data',status));
+
+    checkChannel=newCheckChannel;
+    channel=newDataChannel;
   });
 }
 async function loadChecks(){ setMessage(appMessage,'Carregando marcações compartilhadas…','info'); const {data,error}=await client.from(CHECK_TABLE).select('line_id,checked_at,checked_by').order('line_id'); if(error){setMessage(appMessage,`Erro ao carregar os checks: ${error.message}`,'error');return false;} checked=new Set();checkMeta=new Map();for(const row of data||[]){const id=Number(row.line_id);if(Number.isInteger(id)){checked.add(id);checkMeta.set(id,{checked_at:row.checked_at,checked_by:row.checked_by});}} setMessage(appMessage,'','info');applyFilters();return true; }
