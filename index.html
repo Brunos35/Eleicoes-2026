@@ -1267,10 +1267,28 @@ async function loadMediaChecks(){
 async function loadMediaData(silent=false){
   if(checkSaveDepth>0||busy){mediaReloadPending=true;return true;}
   if(!silent)setMessage(mediaMessage,'Carregando mapas de mídia…','info');
-  const [mr,sr,qr]=await Promise.all([client.from(MAP_TABLE).select('*').order('start_date',{ascending:false}).order('id',{ascending:false}),client.from(SPOT_TABLE).select('*').order('code'),client.from(SEQUENCE_TABLE).select('*').order('sequence_date').order('block').order('occurrence_order')]);
-  const err=mr.error||sr.error||qr.error;
-  if(err){ mediaMaps=[];mediaSpots=[];mediaSequences=[];spotAssignments.clear();operationalRows=DATA;buildScheduleAssignments(); setMessage(mediaMessage,`Mapas de mídia ainda não estão disponíveis no Supabase. Execute o arquivo de atualização SQL antes de usar esta seção. Detalhe: ${err.message}`,'warn'); render(); renderMapWorkspace(); return false; }
-  mediaMaps=mr.data||[];mediaSpots=sr.data||[];mediaSequences=qr.data||[]; if(!silent)setMessage(mediaMessage,'','info'); rebuildOperationalRows(); renderMapWorkspace(); return true;
+  try{
+    // Supabase limita respostas grandes a 1.000 linhas por consulta. Como a tabela de
+    // sequências já ultrapassou esse volume, carregamos TODAS as páginas antes de
+    // reconstruir a grade. A mesma proteção é usada para mapas e spots para evitar
+    // que esse limite volte a aparecer no futuro.
+    const [maps,spots,sequences]=await Promise.all([
+      fetchAllCheckRows(MAP_TABLE,'*','id'),
+      fetchAllCheckRows(SPOT_TABLE,'*','id'),
+      fetchAllCheckRows(SEQUENCE_TABLE,'*','id')
+    ]);
+    const nextMaps=[...maps].sort((a,b)=>String(b.start_date||'').localeCompare(String(a.start_date||''))||Number(b.id)-Number(a.id));
+    const nextSpots=[...spots].sort((a,b)=>String(a.code||'').localeCompare(String(b.code||''),'pt-BR')||Number(a.id)-Number(b.id));
+    const nextSequences=[...sequences].sort((a,b)=>String(a.sequence_date||'').localeCompare(String(b.sequence_date||''))||Number(a.block)-Number(b.block)||Number(a.occurrence_order)-Number(b.occurrence_order)||Number(a.id)-Number(b.id));
+    // Só troca o estado depois que as três leituras completas terminaram. Se houver
+    // falha no meio da paginação, a grade que já estava na tela é preservada.
+    mediaMaps=nextMaps;mediaSpots=nextSpots;mediaSequences=nextSequences;
+    if(!silent)setMessage(mediaMessage,'','info');
+    rebuildOperationalRows();renderMapWorkspace();return true;
+  }catch(err){
+    setMessage(mediaMessage,`Não foi possível atualizar todos os mapas de mídia. A grade anterior foi mantida. Detalhe: ${err.message}`,'warn');
+    return false;
+  }
 }
 async function startSync(){
   if(syncPromise)return syncPromise;
