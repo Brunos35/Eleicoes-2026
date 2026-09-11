@@ -1161,9 +1161,30 @@ async function toggleScheduleDayLock(){
   const res=await client.rpc('lock_schedule_day',{p_program_date:iso,p_actor:currentWho(),p_positions:positions});if(res.error){setMessage(appMessage,`Não foi possível travar: ${res.error.message}`,'error');return;}await auditEvent({eventType:'DAY_LOCK',programDate:iso,summary:`Programação de ${br} travada com ${positions.length} posição(ões)`,details:{positions:positions.length}});await loadDayLocks(true);setMessage(appMessage,`Programação de ${br} travada. Os horários atuais foram congelados.`,'ok');
 }
 async function loadScheduleTimeSettings(silent=false){
-  if(!client)return false;const or=await client.from(TIME_OVERRIDE_TABLE).select('*');const err=or.error;
-  if(err){scheduleSettingsAvailable=false;timeOverrides=new Map();buildScheduleAssignments();applyFilters();if(!silent)setMessage(appMessage,`Editor de horários indisponível. Execute o SQL da atualização no Supabase. Detalhe: ${err.message}`,'warn');return false;}
-  scheduleSettingsAvailable=true;timeOverrides=new Map();for(const row of or.data||[]){const m=Number(row.scheduled_minutes);if(row.row_key&&Number.isInteger(m))timeOverrides.set(String(row.row_key),m);}buildScheduleAssignments();applyFilters();return true;
+  if(!client)return false;
+  try{
+    // schedule_time_overrides já pode ultrapassar o limite padrão de 1.000 linhas do Supabase.
+    // Carrega todas as páginas antes de substituir o estado local; assim uma edição recém-salva
+    // não 'some' da tela apenas porque ficou fora do primeiro lote retornado.
+    const rows=await fetchAllCheckRows(TIME_OVERRIDE_TABLE,'*','row_key');
+    const next=new Map();
+    for(const row of rows||[]){
+      const m=Number(row.scheduled_minutes);
+      if(row.row_key&&Number.isInteger(m))next.set(String(row.row_key),m);
+    }
+    scheduleSettingsAvailable=true;
+    timeOverrides=next;
+    buildScheduleAssignments();
+    applyFilters();
+    return true;
+  }catch(e){
+    scheduleSettingsAvailable=false;
+    // Não apaga os horários que já estavam carregados se uma página falhar temporariamente.
+    buildScheduleAssignments();
+    applyFilters();
+    if(!silent)setMessage(appMessage,`Editor de horários indisponível. Não foi possível carregar todos os horários compartilhados. Detalhe: ${e?.message||e}`,'warn');
+    return false;
+  }
 }
 async function subscribeRealtime({force=false}={}){
   if(!client||!currentUser)throw new Error('Usuário não autenticado.');
