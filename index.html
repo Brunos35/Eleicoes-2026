@@ -1759,10 +1759,53 @@ function aiResolveInsertMapNumber(m,index,state,reserved){
   for(const key of reserved){const [party,cargo,...parts]=key.split('|');if(party===m.program_party&&cargo===m.cargo)used.add(parts.join('|'));}
   let value=base,versioned=false;if(used.has(value)){let n=2;while(used.has(`${base}-R${n}`))n++;value=`${base}-R${n}`;versioned=true;}reserved.add(`${m.program_party}|${m.cargo}|${value}`);return {value,internal:!requested,versioned,requested};
 }
+async function aiFunctionErrorMessage(error){
+  let detail='',status=null,errorCode='';
+  try{
+    const ctx=error?.context;
+    if(ctx){
+      status=ctx.status||null;
+      try{
+        const response=typeof ctx.clone==='function'?ctx.clone():ctx;
+        const body=await response.json();
+        if(body?.error)detail=String(body.error);
+        else if(body?.message)detail=String(body.message);
+        if(body?.provider_status)detail+=`${detail?' ':''}(Gemini HTTP ${body.provider_status}${body.provider_code?` — ${body.provider_code}`:''})`;
+      }catch{
+        try{
+          const response=typeof ctx.clone==='function'?ctx.clone():ctx;
+          const txt=await response.text();
+          if(txt)detail=txt.slice(0,800);
+        }catch{}
+      }
+      try{errorCode=ctx.headers?.get?.('sb-error-code')||'';}catch{}
+    }
+  }catch{}
+  if(detail)return detail;
+  const base=String(error?.message||error||'Falha desconhecida');
+  const extra=[status?`HTTP ${status}`:'',errorCode].filter(Boolean).join(' / ');
+  return extra?`${base} (${extra})`:base;
+}
+async function aiFreshSession(){
+  let {data,error}=await client.auth.getSession();if(error)throw error;let session=data?.session||null;
+  if(!session)throw new Error('Sua sessão expirou. Entre novamente no sistema para usar a análise por IA.');
+  const remaining=(Number(session.expires_at||0)*1000)-Date.now();
+  if(remaining<120000){
+    const refreshed=await client.auth.refreshSession();if(refreshed.error)throw refreshed.error;session=refreshed.data?.session||session;
+  }
+  if(!session?.access_token)throw new Error('Não foi possível obter o token da sessão. Entre novamente no sistema.');
+  return session;
+}
 async function analyzeAiMap(){
   const file=$('aiMapFile')?.files?.[0],msg=$('aiMapStatus');if(!file){setMessage(msg,'Selecione um PDF ou imagem do mapa.','warn');return;}if(!client||!currentUser){setMessage(msg,'Entre no sistema antes de analisar o mapa.','warn');return;}const allowed=['application/pdf','image/png','image/jpeg','image/webp'];if(!allowed.includes(file.type)){setMessage(msg,'Use PDF, JPG, PNG ou WEBP.','warn');return;}if(file.size>18*1024*1024){setMessage(msg,'O arquivo está acima de 18 MB. Reduza o tamanho antes de enviar.','warn');return;}
   aiMapAnalysis=null;aiMapFileRef=file;$('aiMapPreview').innerHTML='';$('confirmAiMap').disabled=true;setMessage(msg,'Analisando o documento com IA… isso pode levar alguns segundos.','info');setMediaBusy(true);
-  try{const data_base64=await fileToBase64(file);const res=await client.functions.invoke('analyze-media-map',{body:{filename:file.name,mime_type:file.type,data_base64}});if(res.error)throw res.error;if(res.data?.error)throw new Error(res.data.error);aiMapAnalysis=aiPrepareAnalysis(res.data);if(!aiMapAnalysis.maps.length)throw new Error('A IA não identificou nenhum mapa no documento.');renderAiMapPreview();setMessage(msg,`${aiMapAnalysis.maps.length} mapa(s) identificado(s). Confira os dados abaixo antes de confirmar.`,'ok');}catch(e){console.error('[IA mapas]',e);setMessage(msg,`Não foi possível analisar o mapa: ${e.message||e}`,'error');}finally{setMediaBusy(false);updateAiConfirmState();}
+  try{
+    const session=await aiFreshSession(),data_base64=await fileToBase64(file);
+    const res=await client.functions.invoke('analyze-media-map',{headers:{Authorization:`Bearer ${session.access_token}`},body:{filename:file.name,mime_type:file.type,data_base64}});
+    if(res.error)throw new Error(await aiFunctionErrorMessage(res.error));
+    if(res.data?.error)throw new Error(res.data.error);
+    aiMapAnalysis=aiPrepareAnalysis(res.data);if(!aiMapAnalysis.maps.length)throw new Error('A IA não identificou nenhum mapa no documento.');renderAiMapPreview();setMessage(msg,`${aiMapAnalysis.maps.length} mapa(s) identificado(s). Confira os dados abaixo antes de confirmar.`,'ok');
+  }catch(e){console.error('[IA mapas]',e);setMessage(msg,`Não foi possível analisar o mapa: ${e.message||e}`,'error');}finally{setMediaBusy(false);updateAiConfirmState();}
 }
 async function uploadAiSource(mapId,file){
   if(!file)return null;const path=`mapas/${mapId}/${Date.now()}_${safeStorageName(file.name)}`;const up=await client.storage.from(MAP_BUCKET).upload(path,file,{upsert:false,contentType:file.type||undefined});if(up.error)throw up.error;const db=await client.from(MAP_TABLE).update({source_storage_path:path,source_file:file.name,updated_at:new Date().toISOString(),updated_by:currentWho()}).eq('id',mapId);if(db.error)throw db.error;return path;
