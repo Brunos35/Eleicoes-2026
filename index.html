@@ -215,6 +215,7 @@
   @media(max-width:1100px){ .dashboard-grid{grid-template-columns:repeat(4,1fr)} .admin-tools-grid{grid-template-columns:1fr} .spot-edit-row{grid-template-columns:1fr 1fr;} }
   @media(max-width:650px){ .wrap{padding:8px} .hero{padding:12px} .dashboard-grid{grid-template-columns:repeat(2,1fr)} .filters{grid-template-columns:1fr 1fr} .map-layout{grid-template-columns:1fr} .spot-edit-row{grid-template-columns:1fr} }
 
+.ai-import-details{grid-column:1/-1}.ai-import-bar{align-items:end}.ai-preview{display:grid;gap:12px;margin-top:12px}.ai-card{border:1px solid var(--border);border-radius:14px;padding:14px;background:var(--panel-soft,#fafafa)}.ai-card-head{display:flex;gap:10px;justify-content:space-between;align-items:flex-start;flex-wrap:wrap}.ai-card h3{margin:0 0 4px}.ai-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px 12px;margin-top:10px}.ai-kv{font-size:.92rem}.ai-kv b{display:block;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}.ai-badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}.ai-badge{display:inline-flex;align-items:center;border-radius:999px;padding:4px 8px;font-size:.78rem;font-weight:700;background:#eef2ff}.ai-badge.ok{background:#ecfdf3}.ai-badge.warn{background:#fff7ed}.ai-badge.danger{background:#fef2f2}.ai-seq-summary{margin-top:10px;overflow:auto}.ai-seq-summary table{min-width:620px}.ai-warning-list{margin:8px 0 0;padding-left:18px}.ai-confirm-line{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:.9rem}.ai-raw-party{color:var(--muted);font-size:.8rem}.ai-card select,.ai-card input{width:100%}.ai-unresolved{outline:2px solid #f59e0b}.ai-note{font-size:.82rem;color:var(--muted);margin-top:8px}
 </style>
 </head>
 <body>
@@ -325,6 +326,16 @@
       <p class="help">Cadastre os materiais e a <strong>ordem dos spots por data e bloco</strong>. O sistema cruza essa ordem com as ocorrências reais do candidato na programação oficial. Assim, uma ordem como <strong>L2 → L2 → L3 → L2</strong> é aplicada somente à data e ao bloco cadastrados.</p>
       <div id="mediaMessage" class="message" role="status"></div>
       <div class="admin-tools-grid">
+        <details class="tool-details ai-import-details" open><summary>✨ Importar mapa com IA</summary><div class="tool-body">
+          <p class="help">Envie um PDF ou imagem do mapa. A IA lê o documento, o sistema compara com a programação oficial e <strong>nada é gravado antes da sua confirmação</strong>.</p>
+          <div class="file-inline ai-import-bar">
+            <div><label for="aiMapFile">PDF / JPG / PNG / WEBP</label><input id="aiMapFile" type="file" accept="application/pdf,image/png,image/jpeg,image/webp"></div>
+            <button type="button" class="primary media-action" id="analyzeAiMap">Analisar com IA</button>
+            <button type="button" class="success media-action" id="confirmAiMap" disabled>Confirmar cadastro</button>
+          </div>
+          <div id="aiMapStatus" class="message" role="status"></div>
+          <div id="aiMapPreview" class="ai-preview"></div>
+        </div></details>
         <details class="tool-details"><summary>Importar mapa por Excel / CSV</summary><div class="tool-body">
           <p class="help">Importe vários spots e ordens sem SQL. Use a planilha padrão; PDFs/DOCX continuam podendo ser anexados ao mapa para consulta.</p>
           <div class="file-inline"><div><label for="mapImportFile">Planilha do mapa</label><input id="mapImportFile" type="file" accept=".xlsx,.xls,.csv"></div><button type="button" id="downloadMapTemplate">Baixar modelo</button><button type="button" class="success media-action" id="importMapSpreadsheet">Importar</button></div>
@@ -533,6 +544,7 @@ let selectedMapId=null, mediaReloadTimer=null, mediaReloadPending=false, checkSa
 let reconnectTimer=null, reconnectAttempts=0, reconnectInProgress=false, syncPromise=null, watchdogTimer=null, channelGeneration=0;
 let blockTimeSettings=new Map(), timeOverrides=new Map(), scheduleSettingsAvailable=true, scheduleSettingsReloadTimer=null, auxiliaryReloadTimer=null, manualSpotsAvailable=true, dayLocksAvailable=true, auditAvailable=true;
 let officialDataAvailable=false, scheduleVersionsAvailable=false, scheduleVersions=[], versionsReloadTimer=null, officialReloadTimer=null;
+let aiMapAnalysis=null, aiMapFileRef=null;
 
 let programIndex = new Map();
 function rebuildProgramIndex(){
@@ -1056,12 +1068,29 @@ function renderAudit(){
   if(!auditBody)return;const rows=auditFilteredRows();auditBody.textContent='';const frag=document.createDocumentFragment();for(const a of rows){const tr=document.createElement('tr');tr.appendChild(td(formatWhen(a.created_at),'when'));tr.appendChild(td(a.actor||'—','audit-actor'));tr.appendChild(td(auditTypeLabel(a.event_type),'audit-type'));tr.appendChild(td(a.program_date?isoToBr(a.program_date):'—','datecell'));tr.appendChild(td(a.block||'—','num'));tr.appendChild(td(a.summary||'—','audit-summary'));frag.appendChild(tr);}auditBody.appendChild(frag);auditEmpty.hidden=rows.length!==0;auditCount.textContent=`${rows.length.toLocaleString('pt-BR')} registro(s)`;
 }
 async function loadAuditData(silent=false){
-  if(!client)return false;const {data,error}=await client.from(AUDIT_TABLE).select('*').order('created_at',{ascending:false}).limit(3000);if(error){auditRows=[];if(!silent)setMessage(auditMessage,`Histórico indisponível: ${error.message}`,'warn');renderAudit();return false;}auditRows=data||[];if(!silent)setMessage(auditMessage,'','info');renderAudit();return true;
+  if(!client)return false;
+  try{
+    const br=auditDateFilter?.value||'';let rows=[];
+    if(br){
+      rows=await fetchAllCheckRows(AUDIT_TABLE,'*','id','program_date',brToIso(br));
+      rows.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)||Number(b.id)-Number(a.id));
+    }else{
+      // Sem uma data específica, mantém apenas uma visão recente para não tornar o boot pesado.
+      const {data,error}=await client.from(AUDIT_TABLE).select('*').order('id',{ascending:false}).limit(3000);
+      if(error)throw error;rows=data||[];
+    }
+    auditRows=rows;if(!silent)setMessage(auditMessage,'','info');renderAudit();return true;
+  }catch(error){
+    if(!silent)setMessage(auditMessage,`Histórico indisponível: ${error.message}`,'warn');renderAudit();return false;
+  }
 }
 function updateAuditRealtime(payload){
   if(payload.eventType!=='INSERT'||!payload.new)return;
-  const a=payload.new;
-  if(!auditRows.some(x=>String(x.id)===String(a.id))){auditRows.unshift(a);if(auditRows.length>3000)auditRows.length=3000;}
+  const a=payload.new,selectedAuditIso=auditDateFilter?.value?brToIso(auditDateFilter.value):'';
+  if((!selectedAuditIso||a.program_date===selectedAuditIso)&&!auditRows.some(x=>String(x.id)===String(a.id))){
+    auditRows.unshift(a);
+    if(!selectedAuditIso&&auditRows.length>3000)auditRows.length=3000;
+  }
   // Segunda via de segurança para checks oficiais. Se, por qualquer motivo, o evento de
   // programacao_checks for perdido, o evento de auditoria confirma imediatamente o estado.
   if((a.event_type==='PROGRAM_SET'||a.event_type==='PROGRAM_UNSET')&&/^o\d+$/.test(String(a.row_key||''))){
@@ -1097,8 +1126,8 @@ function interleaveMediaItems(items){
   for(const item of items){const k=String(item.map.id);if(!queues.has(k))queues.set(k,{map:item.map,items:[]});queues.get(k).items.push(item);}
   const list=[...queues.values()].sort((a,b)=>mapCandidate(a.map).localeCompare(mapCandidate(b.map),'pt-BR')||Number(a.map.id)-Number(b.map.id));
   for(const q of list)q.items.sort((a,b)=>Number(a.seq.occurrence_order)-Number(b.seq.occurrence_order));
-  const out=[];let remaining=true,round=0;
-  while(remaining&&round<200){remaining=false;for(const q of list){if(q.items.length){out.push(q.items.shift());remaining=true;}}round++;}
+  const out=[];let remaining=true;
+  while(remaining){remaining=false;for(const q of list){if(q.items.length){out.push(q.items.shift());remaining=true;}}}
   return out;
 }
 function rebuildOperationalRows(){
@@ -1146,10 +1175,25 @@ function scheduleMediaReload(){
 function scheduleSettingsReload(){clearTimeout(scheduleSettingsReloadTimer);scheduleSettingsReloadTimer=setTimeout(()=>loadScheduleTimeSettings(true),200);}
 function scheduleAuxiliaryReload(){clearTimeout(auxiliaryReloadTimer);auxiliaryReloadTimer=setTimeout(()=>Promise.all([loadManualSpots(true),loadDayLocks(true)]),220);}
 async function loadManualSpots(silent=false){
-  if(!client)return false;const {data,error}=await client.from(MANUAL_SPOT_TABLE).select('*');if(error){manualSpotsAvailable=false;manualSpots=new Map();if(!silent)setMessage(appMessage,`Spots manuais indisponíveis. Execute o SQL desta atualização. Detalhe: ${error.message}`,'warn');applyFilters();return false;}manualSpotsAvailable=true;manualSpots=new Map((data||[]).map(row=>[String(row.row_key),row]));applyFilters();return true;
+  if(!client)return false;
+  try{
+    const data=await fetchAllCheckRows(MANUAL_SPOT_TABLE,'*','row_key');
+    manualSpotsAvailable=true;manualSpots=new Map((data||[]).map(row=>[String(row.row_key),row]));applyFilters();return true;
+  }catch(error){
+    manualSpotsAvailable=false;if(!silent)setMessage(appMessage,`Spots manuais indisponíveis. A lista anterior foi mantida. Detalhe: ${error.message}`,'warn');applyFilters();return false;
+  }
 }
 async function loadDayLocks(silent=false){
-  if(!client)return false;const [lr,pr]=await Promise.all([client.from(DAY_LOCK_TABLE).select('*'),client.from(LOCKED_POSITION_TABLE).select('*')]);const error=lr.error||pr.error;if(error){dayLocksAvailable=false;dayLocks=new Map();lockedPositions=new Map();buildScheduleAssignments();applyFilters();if(!silent)setMessage(appMessage,`Trava de grade indisponível. Execute o SQL desta atualização. Detalhe: ${error.message}`,'warn');return false;}dayLocksAvailable=true;dayLocks=new Map((lr.data||[]).map(row=>[String(row.program_date),row]));lockedPositions=new Map((pr.data||[]).map(row=>[String(row.row_key),row]));buildScheduleAssignments();applyFilters();updateDayLockUI();return true;
+  if(!client)return false;
+  try{
+    const [locks,positions]=await Promise.all([
+      fetchAllCheckRows(DAY_LOCK_TABLE,'*','program_date'),
+      fetchAllCheckRows(LOCKED_POSITION_TABLE,'*','row_key')
+    ]);
+    dayLocksAvailable=true;dayLocks=new Map((locks||[]).map(row=>[String(row.program_date),row]));lockedPositions=new Map((positions||[]).map(row=>[String(row.row_key),row]));buildScheduleAssignments();applyFilters();updateDayLockUI();return true;
+  }catch(error){
+    dayLocksAvailable=false;buildScheduleAssignments();applyFilters();updateDayLockUI();if(!silent)setMessage(appMessage,`Trava de grade indisponível. Os dados já carregados foram mantidos. Detalhe: ${error.message}`,'warn');return false;
+  }
 }
 function updateDayLockUI(){
   if(!toggleDayLock||!dayLockStatus)return;const br=dateFilter.value;if(!dayLocksAvailable){toggleDayLock.disabled=true;dayLockStatus.className='lock-status';dayLockStatus.textContent='Execute o SQL da atualização para usar a trava de programação.';return;}if(!br){toggleDayLock.disabled=true;toggleDayLock.textContent='🔒 Travar programação do dia';dayLockStatus.className='lock-status';dayLockStatus.textContent='Selecione uma data específica para travar a grade.';return;}const iso=brToIso(br),lock=dayLocks.get(iso);toggleDayLock.disabled=!currentUser;if(lock){toggleDayLock.textContent='🔓 Destravar programação do dia';dayLockStatus.className='lock-status locked';dayLockStatus.textContent=`🔒 Grade travada por ${lock.locked_by||'usuário'} em ${formatWhen(lock.locked_at)}. Novos mapas não redistribuem os horários já capturados.`;}else{toggleDayLock.textContent='🔒 Travar programação do dia';dayLockStatus.className='lock-status';dayLockStatus.textContent='Grade aberta: novos mapas podem recalcular a distribuição automática. Travar congela os horários atuais deste dia.';}
@@ -1247,15 +1291,22 @@ async function subscribeRealtime({force=false}={}){
     channel=newDataChannel;
   });
 }
-async function fetchAllCheckRows(table,columns,orderColumn){
-  const pageSize=1000,all=[];let from=0;
+async function fetchAllCheckRows(table,columns,orderColumn,eqColumn='',eqValue=null){
+  // Paginação por chave (keyset), não por offset. Isso evita pular registros se outro
+  // usuário inserir/excluir linhas enquanto esta carga está percorrendo a tabela.
+  const pageSize=1000,all=[];let lastValue=null,pages=0;
   while(true){
-    const {data,error}=await client.from(table).select(columns).order(orderColumn).range(from,from+pageSize-1);
+    let query=client.from(table).select(columns);
+    if(eqColumn)query=query.eq(eqColumn,eqValue);
+    if(lastValue!==null)query=query.gt(orderColumn,lastValue);
+    const {data,error}=await query.order(orderColumn,{ascending:true}).limit(pageSize);
     if(error)throw error;
     const page=data||[];all.push(...page);
     if(page.length<pageSize)break;
-    from+=pageSize;
-    if(from>100000)throw new Error(`Quantidade inesperada de registros em ${table}.`);
+    const nextValue=page[page.length-1]?.[orderColumn];
+    if(nextValue===undefined||nextValue===null||String(nextValue)===String(lastValue))throw new Error(`Não foi possível avançar a paginação de ${table}.`);
+    lastValue=nextValue;pages++;
+    if(pages>2000)throw new Error(`Quantidade inesperada de registros em ${table}.`);
   }
   return all;
 }
@@ -1539,7 +1590,13 @@ async function createScheduleVersion(br,label='',silent=false){
 }
 async function autoVersionBeforeChange(isoDate,label){const br=isoToBr(isoDate);if(!br||!scheduleVersionsAvailable)return null;return createScheduleVersion(br,label,true);}
 async function loadScheduleVersions(silent=false){
-  if(!client)return false;const br=dateFilter.value;if(!br){scheduleVersions=[];renderVersionList();return true;}const {data,error}=await client.from(VERSION_TABLE).select('*').eq('program_date',brToIso(br)).order('version_no',{ascending:false}).limit(30);if(error){scheduleVersionsAvailable=false;scheduleVersions=[];renderVersionList();if(!silent)setMessage($('versionMessage'),`Versionamento indisponível: ${error.message}`,'warn');return false;}scheduleVersionsAvailable=true;scheduleVersions=data||[];renderVersionList();return true;
+  if(!client)return false;const br=dateFilter.value;if(!br){scheduleVersions=[];renderVersionList();return true;}
+  try{
+    const rows=await fetchAllCheckRows(VERSION_TABLE,'*','id','program_date',brToIso(br));
+    scheduleVersionsAvailable=true;scheduleVersions=(rows||[]).sort((a,b)=>Number(b.version_no)-Number(a.version_no)||Number(b.id)-Number(a.id));renderVersionList();return true;
+  }catch(error){
+    scheduleVersionsAvailable=false;if(!silent)setMessage($('versionMessage'),`Versionamento indisponível: ${error.message}`,'warn');renderVersionList();return false;
+  }
 }
 function renderVersionList(){
   const box=$('versionList');if(!box)return;box.textContent='';if(!dateFilter.value){box.innerHTML='<div class="muted">Selecione uma data específica.</div>';return;}if(!scheduleVersions.length){box.innerHTML='<div class="muted">Nenhuma versão salva para esta data.</div>';return;}for(const v of scheduleVersions){const item=document.createElement('div');item.className='version-item';const main=document.createElement('div');main.className='version-main';main.innerHTML=`<strong>v${Number(v.version_no)} • ${escapeHtml(v.label||'Versão')}</strong><small>${escapeHtml(v.created_by||'')} • ${escapeHtml(formatWhen(v.created_at))}</small>`;const btn=document.createElement('button');btn.type='button';btn.textContent='Restaurar';btn.addEventListener('click',()=>restoreScheduleVersion(v));item.append(main,btn);box.appendChild(item);}}
@@ -1558,6 +1615,111 @@ function sheetRowsFromFile(file){return file.arrayBuffer().then(buf=>{const wb=X
 function normHeader(s){return normalize(String(s||'')).replace(/[^a-z0-9]+/g,'');}
 function rowPick(row,...names){const entries=Object.entries(row),wanted=names.map(normHeader);for(const [k,v] of entries)if(wanted.includes(normHeader(k)))return v;return'';}
 function toIsoAny(v){if(!v)return'';const s=String(v).trim();if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;if(/^\d{2}\/\d{2}\/\d{4}$/.test(s))return brToIso(s);const d=new Date(v);return Number.isNaN(d.getTime())?'':`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+function fileToBase64(file){
+  return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onerror=()=>reject(new Error('Não foi possível ler o arquivo.'));reader.onload=()=>{const v=String(reader.result||''),i=v.indexOf(',');resolve(i>=0?v.slice(i+1):v);};reader.readAsDataURL(file);});
+}
+function aiCanonicalCargo(raw=''){
+  const cargos=['Presidente','Governador','Senador','Deputado Federal','Deputado Distrital'];
+  const n=normalize(raw);return cargos.find(c=>normalize(c)===n)||cargos.find(c=>n.includes(normalize(c))||normalize(c).includes(n))||String(raw||'').trim();
+}
+function aiCanonicalParty(cargo,raw=''){
+  const parties=uniquePartiesForCargo(cargo),n=normalize(raw).replace(/[^a-z0-9]+/g,' ').trim();
+  if(!n)return '';
+  const exact=parties.find(p=>normalize(p).replace(/[^a-z0-9]+/g,' ').trim()===n);if(exact)return exact;
+  const tokens=n.split(/\s+/).filter(x=>x.length>2&&!['partido','federacao','coligacao','diretorio','nacional','distrito','federal'].includes(x));
+  let best='',score=0;for(const p of parties){const pn=normalize(p).replace(/[^a-z0-9]+/g,' ').trim(),pt=pn.split(/\s+/);let hit=0;for(const x of tokens)if(pt.includes(x)||pn.includes(x))hit++;const sc=tokens.length?hit/tokens.length:0;if(sc>score){score=sc;best=p;}}
+  return score>=0.6?best:'';
+}
+function aiDefaultMapNumber(m,index){
+  if(String(m.map_number||'').trim())return String(m.map_number).trim();
+  const who=safeStorageName((m.candidate_name||m.cargo||'MAPA').toUpperCase()).replace(/\.[^.]+$/,'').slice(0,24)||'MAPA';
+  const d=(m.start_date||'SEM-DATA').replaceAll('-','');return `AUTO-${who}-${d}${index?'-'+(index+1):''}`;
+}
+function aiPrepareAnalysis(raw){
+  const analysis=raw?.analysis||raw||{},maps=Array.isArray(analysis.maps)?analysis.maps:[];
+  return {document_warnings:Array.isArray(analysis.document_warnings)?analysis.document_warnings:[],maps:maps.map((m,i)=>{const cargo=aiCanonicalCargo(m.cargo),party=aiCanonicalParty(cargo,m.program_party);return {...m,_index:i,cargo,raw_program_party:m.program_party||'',program_party:party||m.program_party||'',_partyResolved:!!party,map_number:aiDefaultMapNumber(m,i),spots:(m.spots||[]).map((sp,j)=>({...sp,code:String(sp.code||`SPOT${j+1}`).trim().toUpperCase(),duration_seconds:Number(sp.duration_seconds)||null})),sequences:(m.sequences||[]).map(q=>({...q,date:String(q.date||''),block:q.block==null?null:Number(q.block),occurrence_order:Number(q.occurrence_order)||1,spot_code:String(q.spot_code||'').trim().toUpperCase()}))};})};
+}
+function aiExistingCount(map,date,block){
+  const ids=new Set(mediaMaps.filter(m=>m.active!==false&&m.program_party===map.program_party&&m.cargo===map.cargo&&m.start_date<=date&&m.end_date>=date).filter(m=>{
+    if(String(m.map_number)===String(map.map_number))return false;
+    if(map.replaces_previous&&normalize(m.candidate_name||'')===normalize(map.candidate_name||'')&&m.start_date>=map.start_date&&m.end_date<=map.end_date)return false;
+    return true;
+  }).map(m=>String(m.id)));
+  return mediaSequences.filter(q=>ids.has(String(q.map_id))&&q.sequence_date===date&&Number(q.block)===Number(block)).length;
+}
+function aiOfficialCount(map,date,block){
+  const br=isoToBr(date);return DATA.filter(r=>r.date===br&&r.cargo===map.cargo&&r.party===map.program_party&&Number(r.block)===Number(block)).length;
+}
+function aiValidation(map){
+  const items=[],group=new Map();for(const q of map.sequences||[]){if(q.block==null)continue;const k=`${q.date}|${q.block}`;group.set(k,(group.get(k)||0)+1);}for(const [k,own] of group){const [date,b]=k.split('|'),block=Number(b),official=aiOfficialCount(map,date,block),existing=aiExistingCount(map,date,block),combined=existing+own;let level='ok',label='Confere';if(official===0&&combined>0){level='danger';label='Sem posição oficial';}else if(combined>official){level='danger';label=`Excede em ${combined-official}`;}else if(combined<official){level='warn';label=`Parcial: faltam ${official-combined}`;}items.push({date,block,own,existing,combined,official,level,label});}return items;
+}
+function aiHasBlockingIssues(){
+  if(!aiMapAnalysis?.maps?.length)return true;
+  return aiMapAnalysis.maps.some(m=>!m.cargo||!m._partyResolved||!m.start_date||!m.end_date||(m.sequences||[]).some(q=>!q.date||q.block==null||![1,2,3].includes(Number(q.block))||!q.spot_code));
+}
+function renderAiMapPreview(){
+  const box=$('aiMapPreview'),confirm=$('confirmAiMap');if(!box)return;box.innerHTML='';if(!aiMapAnalysis?.maps?.length){if(confirm)confirm.disabled=true;return;}
+  if(aiMapAnalysis.document_warnings?.length){const d=document.createElement('div');d.className='message show warn';d.textContent='Avisos do documento: '+aiMapAnalysis.document_warnings.join(' • ');box.appendChild(d);}
+  aiMapAnalysis.maps.forEach((m,idx)=>{
+    const v=aiValidation(m),danger=v.some(x=>x.level==='danger'),partial=v.some(x=>x.level==='warn'),unresolved=!m._partyResolved||(m.sequences||[]).some(q=>q.block==null),low=Number(m.confidence||0)<0.75;
+    const card=document.createElement('div');card.className='ai-card';
+    const parties=uniquePartiesForCargo(m.cargo);const partyOpts=parties.map(p=>`<option value="${escapeHtml(p)}" ${p===m.program_party?'selected':''}>${escapeHtml(p)}</option>`).join('');
+    card.innerHTML=`<div class="ai-card-head"><div><h3>${escapeHtml(m.candidate_name||m.title||`Mapa ${idx+1}`)}</h3><div class="ai-raw-party">IA leu: ${escapeHtml(m.raw_program_party||'—')}</div></div><div class="ai-badges"><span class="ai-badge ${unresolved?'danger':danger?'danger':partial?'warn':'ok'}">${unresolved?'Revisão obrigatória':danger?'Divergência':partial?'Mapa parcial':'Pronto'}</span><span class="ai-badge ${low?'warn':'ok'}">Confiança ${Math.round(Number(m.confidence||0)*100)}%</span></div></div>
+    <div class="ai-grid">
+      <div class="ai-kv"><b>Cargo</b><select class="ai-cargo" data-i="${idx}">${['Presidente','Governador','Senador','Deputado Federal','Deputado Distrital'].map(c=>`<option ${c===m.cargo?'selected':''}>${c}</option>`).join('')}</select></div>
+      <div class="ai-kv"><b>Partido / coligação</b><select class="ai-party ${m._partyResolved?'':'ai-unresolved'}" data-i="${idx}"><option value="">Selecione…</option>${partyOpts}</select></div>
+      <div class="ai-kv"><b>Candidato</b><input class="ai-candidate" data-i="${idx}" value="${escapeHtml(m.candidate_name||'')}"></div>
+      <div class="ai-kv"><b>Nº do mapa</b><input class="ai-number" data-i="${idx}" value="${escapeHtml(m.map_number||'')}"></div>
+      <div class="ai-kv"><b>Período</b>${escapeHtml(m.start_date||'—')} → ${escapeHtml(m.end_date||'—')}</div>
+      <div class="ai-kv"><b>Tipo</b>${escapeHtml(m.map_type||'desconhecido')}</div>
+      <div class="ai-kv"><b>Spots</b>${(m.spots||[]).length}</div>
+      <div class="ai-kv"><b>Inserções</b>${(m.sequences||[]).length}</div>
+    </div>`;
+    const badges=card.querySelector('.ai-badges');if(m.replaces_previous)badges.insertAdjacentHTML('beforeend','<span class="ai-badge warn">Substitui anterior</span>');
+    const spotText=(m.spots||[]).map(s=>`${s.code}: ${s.title||s.code}${s.duration_seconds?` (${s.duration_seconds}s)`:' (duração não informada)'}`).join(' • ');const sd=document.createElement('div');sd.className='ai-note';sd.textContent=spotText||'Nenhum spot identificado.';card.appendChild(sd);
+    if(v.length){const tbl=document.createElement('div');tbl.className='ai-seq-summary';tbl.innerHTML='<table><thead><tr><th>Data</th><th>Bloco</th><th>Este mapa</th><th>Outros mapas</th><th>Total após cadastro</th><th>Oficial</th><th>Situação</th></tr></thead><tbody>'+v.map(x=>`<tr><td>${isoToBr(x.date)}</td><td>${x.block}</td><td>${x.own}</td><td>${x.existing}</td><td>${x.combined}</td><td>${x.official}</td><td><span class="ai-badge ${x.level}">${x.label}</span></td></tr>`).join('')+'</tbody></table>';card.appendChild(tbl);}
+    const unresolvedSeq=(m.sequences||[]).map((q,si)=>({q,si})).filter(x=>x.q.block==null);if(unresolvedSeq.length){const ed=document.createElement('div');ed.className='ai-seq-summary';ed.innerHTML='<div class="ai-note"><strong>Defina o bloco das posições que o documento não informou:</strong></div><table><thead><tr><th>Data</th><th>Spot</th><th>Bloco</th></tr></thead><tbody>'+unresolvedSeq.map(x=>`<tr><td>${isoToBr(x.q.date)}</td><td>${escapeHtml(x.q.spot_code)}</td><td><select class="ai-seq-block ai-unresolved" data-i="${idx}" data-si="${x.si}"><option value="">Selecione…</option><option value="1">Bloco 1</option><option value="2">Bloco 2</option><option value="3">Bloco 3</option></select></td></tr>`).join('')+'</tbody></table>';card.appendChild(ed);}
+    const warns=[...(m.warnings||[])];if(unresolvedSeq.length)warns.push('Há inserções sem bloco identificado no documento. Selecione os blocos acima antes de confirmar.');if(!(m.spots||[]).every(s=>s.duration_seconds))warns.push('Há spot sem duração informada; no cadastro será usado 30s como padrão operacional.');if(warns.length){const ul=document.createElement('ul');ul.className='ai-warning-list';ul.innerHTML=warns.map(w=>`<li>${escapeHtml(w)}</li>`).join('');card.appendChild(ul);}
+    if(danger||low){const lab=document.createElement('label');lab.className='ai-confirm-line';lab.innerHTML=`<input type="checkbox" class="ai-risk-confirm" data-i="${idx}"> Confirmo que revisei as divergências/baixa confiança deste mapa.`;card.appendChild(lab);}
+    box.appendChild(card);
+  });
+  box.querySelectorAll('.ai-cargo').forEach(el=>el.addEventListener('change',e=>{const i=Number(e.target.dataset.i),m=aiMapAnalysis.maps[i];m.cargo=e.target.value;m.program_party=aiCanonicalParty(m.cargo,m.raw_program_party)||'';m._partyResolved=!!m.program_party;renderAiMapPreview();}));
+  box.querySelectorAll('.ai-party').forEach(el=>el.addEventListener('change',e=>{const i=Number(e.target.dataset.i),m=aiMapAnalysis.maps[i];m.program_party=e.target.value;m._partyResolved=!!m.program_party;renderAiMapPreview();}));
+  box.querySelectorAll('.ai-candidate').forEach(el=>el.addEventListener('input',e=>{aiMapAnalysis.maps[Number(e.target.dataset.i)].candidate_name=e.target.value;}));
+  box.querySelectorAll('.ai-number').forEach(el=>el.addEventListener('input',e=>{aiMapAnalysis.maps[Number(e.target.dataset.i)].map_number=e.target.value;}));
+  box.querySelectorAll('.ai-seq-block').forEach(el=>el.addEventListener('change',e=>{const mi=Number(e.target.dataset.i),si=Number(e.target.dataset.si),map=aiMapAnalysis.maps[mi];map.sequences[si].block=e.target.value?Number(e.target.value):null;const counters=new Map();for(const q of map.sequences){if(q.block==null)continue;const k=`${q.date}|${q.block}`;const n=(counters.get(k)||0)+1;counters.set(k,n);q.occurrence_order=n;}renderAiMapPreview();}));
+  box.querySelectorAll('.ai-risk-confirm').forEach(el=>el.addEventListener('change',()=>updateAiConfirmState()));updateAiConfirmState();
+}
+function updateAiConfirmState(){
+  const btn=$('confirmAiMap');if(!btn)return;const blocking=aiHasBlockingIssues();let risksOk=true;document.querySelectorAll('.ai-risk-confirm').forEach(cb=>{if(!cb.checked)risksOk=false;});btn.disabled=!currentUser||blocking||!risksOk||!aiMapAnalysis?.maps?.length;
+}
+async function analyzeAiMap(){
+  const file=$('aiMapFile')?.files?.[0],msg=$('aiMapStatus');if(!file){setMessage(msg,'Selecione um PDF ou imagem do mapa.','warn');return;}if(!client||!currentUser){setMessage(msg,'Entre no sistema antes de analisar o mapa.','warn');return;}const allowed=['application/pdf','image/png','image/jpeg','image/webp'];if(!allowed.includes(file.type)){setMessage(msg,'Use PDF, JPG, PNG ou WEBP.','warn');return;}if(file.size>18*1024*1024){setMessage(msg,'O arquivo está acima de 18 MB. Reduza o tamanho antes de enviar.','warn');return;}
+  aiMapAnalysis=null;aiMapFileRef=file;$('aiMapPreview').innerHTML='';$('confirmAiMap').disabled=true;setMessage(msg,'Analisando o documento com IA… isso pode levar alguns segundos.','info');setMediaBusy(true);
+  try{const data_base64=await fileToBase64(file);const res=await client.functions.invoke('analyze-media-map',{body:{filename:file.name,mime_type:file.type,data_base64}});if(res.error)throw res.error;if(res.data?.error)throw new Error(res.data.error);aiMapAnalysis=aiPrepareAnalysis(res.data);if(!aiMapAnalysis.maps.length)throw new Error('A IA não identificou nenhum mapa no documento.');renderAiMapPreview();setMessage(msg,`${aiMapAnalysis.maps.length} mapa(s) identificado(s). Confira os dados abaixo antes de confirmar.`,'ok');}catch(e){console.error('[IA mapas]',e);setMessage(msg,`Não foi possível analisar o mapa: ${e.message||e}`,'error');}finally{setMediaBusy(false);updateAiConfirmState();}
+}
+async function uploadAiSource(mapId,file){
+  if(!file)return null;const path=`mapas/${mapId}/${Date.now()}_${safeStorageName(file.name)}`;const up=await client.storage.from(MAP_BUCKET).upload(path,file,{upsert:false,contentType:file.type||undefined});if(up.error)throw up.error;const db=await client.from(MAP_TABLE).update({source_storage_path:path,source_file:file.name,updated_at:new Date().toISOString(),updated_by:currentWho()}).eq('id',mapId);if(db.error)throw db.error;return path;
+}
+async function confirmAiMapImport(){
+  const msg=$('aiMapStatus');if(aiHasBlockingIssues()){setMessage(msg,'Ainda há campos obrigatórios sem revisão.','warn');return;}if(!aiMapAnalysis?.maps?.length||!aiMapFileRef)return;setMediaBusy(true);$('confirmAiMap').disabled=true;try{
+    const affectedDates=[...new Set(aiMapAnalysis.maps.flatMap(m=>(m.sequences||[]).map(q=>q.date)).filter(Boolean))];for(const d of affectedDates)await autoVersionBeforeChange(d,`Antes da importação IA ${aiMapFileRef.name}`);
+    let mapsCount=0,seqCount=0;
+    for(const m of aiMapAnalysis.maps){
+      const notes=[m.notes||'',...(m.warnings||[]).map(w=>`IA: ${w}`)].filter(Boolean).join(' ');
+      const mp={program_party:m.program_party,cargo:m.cargo,candidate_name:(m.candidate_name||'').trim()||null,map_number:(m.map_number||'').trim(),source_file:aiMapFileRef.name,title:m.title||`Mapa importado por IA - ${m.candidate_name||m.cargo}`,start_date:m.start_date,end_date:m.end_date,active:true,notes:notes||null,updated_at:new Date().toISOString(),updated_by:currentWho()};
+      if(m.replaces_previous&&m.candidate_name){const old=mediaMaps.filter(x=>x.active!==false&&x.program_party===m.program_party&&x.cargo===m.cargo&&normalize(x.candidate_name||'')===normalize(m.candidate_name||'')&&String(x.map_number)!==String(m.map_number)&&x.start_date>=m.start_date&&x.end_date<=m.end_date);if(old.length){const rr=await client.from(MAP_TABLE).update({active:false,updated_at:new Date().toISOString(),updated_by:currentWho()}).in('id',old.map(x=>x.id));if(rr.error)throw rr.error;}}
+      const mr=await client.from(MAP_TABLE).upsert(mp,{onConflict:'program_party,cargo,map_number'}).select().single();if(mr.error)throw mr.error;mapsCount++;
+      const spots=(m.spots||[]).map(s=>({map_id:mr.data.id,code:String(s.code||'').toUpperCase(),title:s.title||s.code||null,duration_seconds:Number(s.duration_seconds)||30,audio_filename:s.audio_filename||null}));if(spots.length){const sr=await client.from(SPOT_TABLE).upsert(spots,{onConflict:'map_id,code'});if(sr.error)throw sr.error;}
+      const fr=await client.from(SPOT_TABLE).select('id,code').eq('map_id',mr.data.id);if(fr.error)throw fr.error;const byCode=new Map((fr.data||[]).map(x=>[String(x.code).toUpperCase(),x.id]));
+      const seq=(m.sequences||[]).filter(q=>q.block!=null).map(q=>({map_id:mr.data.id,sequence_date:q.date,block:Number(q.block),occurrence_order:Number(q.occurrence_order),spot_id:byCode.get(String(q.spot_code).toUpperCase()),created_by:currentWho(),updated_at:new Date().toISOString()}));if(seq.some(q=>!q.spot_id))throw new Error(`Um spot do mapa ${m.map_number} não foi encontrado na lista de materiais.`);if(seq.length){const qr=await client.from(SEQUENCE_TABLE).upsert(seq,{onConflict:'map_id,sequence_date,block,occurrence_order'});if(qr.error)throw qr.error;}
+      const affected=[...new Set(seq.map(r=>`${r.sequence_date}|${r.block}`))];for(const key of affected){const [d,b]=key.split('|'),keep=new Set(seq.filter(r=>r.sequence_date===d&&String(r.block)===b).map(r=>Number(r.occurrence_order)));const cur=mediaSequences.filter(q=>String(q.map_id)===String(mr.data.id)&&q.sequence_date===d&&String(q.block)===b),remove=cur.filter(q=>!keep.has(Number(q.occurrence_order)));if(remove.length){const dr=await client.from(SEQUENCE_TABLE).delete().in('id',remove.map(q=>q.id));if(dr.error)throw dr.error;}}
+      try{await uploadAiSource(mr.data.id,aiMapFileRef);}catch(e){console.warn('[IA mapas] arquivo fonte não anexado:',e?.message||e);}seqCount+=seq.length;
+    }
+    await auditEvent({eventType:'MAP_IMPORT',programDate:affectedDates[0]||null,summary:`Mapa(s) importado(s) com IA: ${aiMapFileRef.name}`,details:{maps:mapsCount,sequences:seqCount,dates:affectedDates,source:'gemini-3.8-flash'}});await loadMediaData(true);setMessage(msg,`${mapsCount} mapa(s) e ${seqCount} inserção(ões) cadastrados com sucesso.`,'ok');aiMapAnalysis=null;aiMapFileRef=null;$('aiMapPreview').innerHTML='';$('aiMapFile').value='';
+  }catch(e){console.error('[IA mapas confirmar]',e);setMessage(msg,`Cadastro não concluído: ${e.message||e}`,'error');}finally{setMediaBusy(false);updateAiConfirmState();}
+}
+
 function downloadMapTemplate(){const data=[{map_number:'EXEMPLO-001',cargo:'Presidente',program_party:'PARTIDO EXEMPLO',candidate_name:'CANDIDATO EXEMPLO',start_date:'2026-09-01',end_date:'2026-09-01',map_title:'Mapa de inserções',source_file:'mapa.pdf',date:'2026-09-01',block:1,occurrence_order:1,spot_code:'A',spot_title:'SPOT 01',duration_seconds:30,audio_filename:'spot01.mp3'},{map_number:'EXEMPLO-001',cargo:'Presidente',program_party:'PARTIDO EXEMPLO',candidate_name:'CANDIDATO EXEMPLO',start_date:'2026-09-01',end_date:'2026-09-01',map_title:'Mapa de inserções',source_file:'mapa.pdf',date:'2026-09-01',block:1,occurrence_order:2,spot_code:'B',spot_title:'SPOT 02',duration_seconds:30,audio_filename:'spot02.mp3'}];const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(data),'Mapa');XLSX.writeFile(wb,'modelo-importacao-mapa.xlsx');}
 function downloadOfficialTemplate(){const data=[{Data:'01/09/2026',Bloco:1,Sequencia:1,Partido:'PARTIDO / FEDERAÇÃO / COLIGAÇÃO',Cargo:'Governador',Pagina:1}];const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(data),'Programacao');XLSX.writeFile(wb,'modelo-programacao-oficial.xlsx');}
 async function importMapSpreadsheet(){
@@ -1574,7 +1736,7 @@ function closingRowsForDate(br){return(operationalRows.length?operationalRows:DA
 async function exportClosingWorkbook(){
   const br=(currentView==='relatorios'?reportDateFilter.value:dateFilter.value)||dateFilter.value||reportDateFilter.value;if(!br){setMessage(currentView==='relatorios'?reportMessage:appMessage,'Selecione uma data específica para gerar o fechamento.','warn');return;}if(!window.XLSX)return;const rows=closingRowsForDate(br),done=rows.filter(isRowDone).length,pending=rows.length-done,missing=rows.filter(r=>mapStatusForRow(r)==='absent').length,radio=rows.filter(r=>spotOriginForRow(r)==='radio').length,conflicts=rows.filter(reportHasConflict).length;
   const program=rows.map(r=>{const a=scheduleAssignments.get(rowDomKey(r)),spot=effectiveSpotForRow(r),meta=rowCheckMeta(r);return{'Data':r.date,'Horário':a?.suggestedTime||'','Bloco':r.block,'Sequência':r.seq||'','Partido / Coligação':r.party,'Candidato(s)':candidateForRow(r),'Cargo':r.cargo,'Spot':spot?.title||spot?.code||'','Código':spot?.code||'','Origem do spot':spotOriginLabel(spotOriginForRow(r)),'Mapa de mídia':mapStatusLabel(mapStatusForRow(r)),'Programação':isRowDone(r)?'Programado':'Pendente','Conflito':reportConflictLabel(r),'Programado por':isRowDone(r)?(meta?.checked_by||''):'','Quando':isRowDone(r)?formatWhen(meta?.checked_at):''};});
-  const iso=brToIso(br);let dayAudit=auditRows.filter(a=>a.program_date===iso),dayVersions=scheduleVersions.filter(v=>v.program_date===iso);if(client){const [ar,vr]=await Promise.all([client.from(AUDIT_TABLE).select('*').eq('program_date',iso).order('created_at',{ascending:true}).limit(5000),client.from(VERSION_TABLE).select('*').eq('program_date',iso).order('version_no',{ascending:true}).limit(200)]);if(!ar.error)dayAudit=ar.data||[];if(!vr.error)dayVersions=vr.data||[];}
+  const iso=brToIso(br);let dayAudit=auditRows.filter(a=>a.program_date===iso),dayVersions=scheduleVersions.filter(v=>v.program_date===iso);if(client){try{const [ar,vr]=await Promise.all([fetchAllCheckRows(AUDIT_TABLE,'*','id','program_date',iso),fetchAllCheckRows(VERSION_TABLE,'*','id','program_date',iso)]);dayAudit=(ar||[]).sort((a,b)=>new Date(a.created_at)-new Date(b.created_at)||Number(a.id)-Number(b.id));dayVersions=(vr||[]).sort((a,b)=>Number(a.version_no)-Number(b.version_no)||Number(a.id)-Number(b.id));}catch(e){console.warn('[Fechamento] não foi possível carregar todo o histórico/versionamento do dia:',e?.message||e);}}
   const history=dayAudit.map(a=>({'Quando':formatWhen(a.created_at),'Usuário':a.actor,'Tipo':auditTypeLabel(a.event_type),'Resumo':a.summary,'Detalhes':JSON.stringify(a.details||{})})),versions=dayVersions.map(v=>({'Versão':`v${v.version_no}`,'Nome':v.label,'Criada por':v.created_by,'Quando':formatWhen(v.created_at)})),maps=mediaMaps.filter(m=>m.start_date<=iso&&m.end_date>=iso).map(m=>({'Mapa':m.map_number,'Cargo':m.cargo,'Partido / Coligação':m.program_party,'Candidato':mapCandidate(m),'Status':mapLifecycleStatus(m).label,'PDF anexado':m.source_storage_path?'Sim':'Não'}));
   const missingMapGroups=[...new Map(rows.filter(r=>mapStatusForRow(r)==='absent').map(r=>{const party=String(r.party||'').trim()||'Partido/coligação não informado',cargo=String(r.cargo||'').trim()||'Cargo não informado',candidate=String(candidateForRow(r)||'').trim()||'Candidato não identificado';return [`${normalize(party)}|${normalize(cargo)}|${normalize(candidate)}`,{party,cargo,candidate}];})).values()];
   const missingMapSummary=missingMapGroups.length?missingMapGroups.map(x=>`${x.party} — ${x.cargo} — ${x.candidate}`).join(' | '):'Nenhum';
@@ -1614,7 +1776,7 @@ $('resetConfigButton').addEventListener('click',resetConfig);$('changeConfig').a
 $('tabProgramacao').addEventListener('click',()=>showView('programacao'));$('tabMapas').addEventListener('click',()=>showView('mapas'));$('tabRelatorios').addEventListener('click',()=>showView('relatorios'));$('tabHistorico').addEventListener('click',()=>showView('historico'));
 dateFilter.addEventListener('change',()=>{applyFilters();loadScheduleVersions(true);});viewFilter.addEventListener('change',applyFilters);blockFilter.addEventListener('change',applyFilters);cargoFilter.addEventListener('change',applyFilters);statusFilter.addEventListener('change',applyFilters);mapStatusFilter.addEventListener('change',applyFilters);searchFilter.addEventListener('input',applyFilters);
 reportDateFilter.addEventListener('change',renderReports);reportViewFilter.addEventListener('change',renderReports);reportBlockFilter.addEventListener('change',renderReports);reportCargoFilter.addEventListener('change',renderReports);reportStatusFilter.addEventListener('change',renderReports);reportMapStatusFilter.addEventListener('change',renderReports);reportOriginFilter.addEventListener('change',renderReports);reportConflictFilter.addEventListener('change',renderReports);reportSearchFilter.addEventListener('input',renderReports);
-$('copyProgramFilters').addEventListener('click',syncReportFiltersFromProgram);$('exportReportXlsx').addEventListener('click',exportReportWorkbook);auditDateFilter.addEventListener('change',renderAudit);auditTypeFilter.addEventListener('change',renderAudit);auditSearchFilter.addEventListener('input',renderAudit);$('reloadAudit').addEventListener('click',()=>loadAuditData());$('exportAuditXlsx').addEventListener('click',exportAuditWorkbook);toggleDayLock.addEventListener('click',toggleScheduleDayLock);
+$('copyProgramFilters').addEventListener('click',syncReportFiltersFromProgram);$('exportReportXlsx').addEventListener('click',exportReportWorkbook);auditDateFilter.addEventListener('change',()=>loadAuditData());auditTypeFilter.addEventListener('change',renderAudit);auditSearchFilter.addEventListener('input',renderAudit);$('reloadAudit').addEventListener('click',()=>loadAuditData());$('exportAuditXlsx').addEventListener('click',exportAuditWorkbook);toggleDayLock.addEventListener('click',toggleScheduleDayLock);
 $('checkVisible').addEventListener('click',()=>{const rows=visibleRows.filter(r=>!isRowDone(r));if(!rows.length){setMessage(appMessage,'Todas as linhas visíveis já estão marcadas.','info');return;}if(rows.length>25&&!confirm(`Marcar ${rows.length.toLocaleString('pt-BR')} linhas visíveis?`))return;runRowBatches(rows,true);});
 $('uncheckVisible').addEventListener('click',()=>{const rows=visibleRows.filter(r=>isRowDone(r));if(!rows.length){setMessage(appMessage,'Nenhuma linha visível está marcada.','info');return;}if(rows.length>25&&!confirm(`Desmarcar ${rows.length.toLocaleString('pt-BR')} linhas visíveis?`))return;runRowBatches(rows,false);});
 $('clearAll').addEventListener('click',clearAllSharedChecks);
@@ -1628,6 +1790,7 @@ manualKnownSpot.addEventListener('change',()=>{if(manualKnownSpot.value==='')ret
   $('goToday').addEventListener('click',()=>{const today=localTodayBr();if([...dateFilter.options].some(o=>o.value===today)){dateFilter.value=today;applyFilters();loadScheduleVersions(true);}else setMessage(appMessage,'A data de hoje não está na programação oficial carregada.','info');});
   $('exportClosingXlsx').addEventListener('click',exportClosingWorkbook);$('exportClosingXlsxReport').addEventListener('click',exportClosingWorkbook);
   $('createVersionButton').addEventListener('click',()=>{if(!dateFilter.value){setMessage($('versionMessage'),'Selecione uma data específica.','warn');return;}createScheduleVersion(dateFilter.value,$('versionLabel').value.trim());});$('reloadVersionsButton').addEventListener('click',()=>loadScheduleVersions());
+  $('analyzeAiMap').addEventListener('click',analyzeAiMap);$('confirmAiMap').addEventListener('click',confirmAiMapImport);$('aiMapFile').addEventListener('change',()=>{aiMapAnalysis=null;aiMapFileRef=null;$('aiMapPreview').innerHTML='';$('confirmAiMap').disabled=true;setMessage($('aiMapStatus'),'Arquivo selecionado. Clique em Analisar com IA.','info');});
   $('downloadMapTemplate').addEventListener('click',downloadMapTemplate);$('importMapSpreadsheet').addEventListener('click',importMapSpreadsheet);$('downloadOfficialTemplate').addEventListener('click',downloadOfficialTemplate);$('importOfficialSpreadsheet').addEventListener('click',importOfficialSpreadsheet);
   $('openMapPdf').addEventListener('click',()=>{const p=$('openMapPdf').dataset.path;if(p)openStorageAsset(MAP_BUCKET,p);});
 window.addEventListener('online',()=>{if(currentUser){setLive('Internet voltou — reconectando…','wait');clearReconnectTimer();reconnectAttempts=0;reconnectRealtime('internet voltou',true);}});
