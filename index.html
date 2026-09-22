@@ -1618,6 +1618,16 @@ function toIsoAny(v){if(!v)return'';const s=String(v).trim();if(/^\d{4}-\d{2}-\d
 function fileToBase64(file){
   return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onerror=()=>reject(new Error('Não foi possível ler o arquivo.'));reader.onload=()=>{const v=String(reader.result||''),i=v.indexOf(',');resolve(i>=0?v.slice(i+1):v);};reader.readAsDataURL(file);});
 }
+function aiFileMimeType(file){
+  const explicit=String(file?.type||'').toLowerCase(),supported=['application/pdf','image/png','image/jpeg','image/webp'];
+  if(supported.includes(explicit))return explicit;
+  const name=String(file?.name||'').toLowerCase();
+  if(name.endsWith('.pdf'))return 'application/pdf';
+  if(name.endsWith('.png'))return 'image/png';
+  if(name.endsWith('.jpg')||name.endsWith('.jpeg'))return 'image/jpeg';
+  if(name.endsWith('.webp'))return 'image/webp';
+  return '';
+}
 function aiCanonicalCargo(raw=''){
   const cargos=['Presidente','Governador','Senador','Deputado Federal','Deputado Distrital'];
   const n=normalize(raw);return cargos.find(c=>normalize(c)===n)||cargos.find(c=>n.includes(normalize(c))||normalize(c).includes(n))||String(raw||'').trim();
@@ -1645,7 +1655,7 @@ function aiInternalMapBase(m,index=0){
 }
 function aiPrepareAnalysis(raw){
   const analysis=raw?.analysis||raw||{},maps=Array.isArray(analysis.maps)?analysis.maps:[];
-  return {document_warnings:Array.isArray(analysis.document_warnings)?analysis.document_warnings:[],maps:maps.map((m,i)=>{
+  return {model:String(raw?.model||analysis?.model||''),document_warnings:Array.isArray(analysis.document_warnings)?analysis.document_warnings:[],maps:maps.map((m,i)=>{
     const cargo=aiCanonicalCargo(m.cargo),party=aiCanonicalParty(cargo,m.program_party),documentMapNumber=String(m.map_number||'').trim();
     return {...m,_index:i,cargo,raw_program_party:m.program_party||'',program_party:party||m.program_party||'',_partyResolved:!!party,map_number:documentMapNumber,_documentMapNumber:documentMapNumber,_mapNumberEdited:false,spots:(m.spots||[]).map((sp,j)=>({...sp,code:String(sp.code||`SPOT${j+1}`).trim().toUpperCase(),duration_seconds:Number(sp.duration_seconds)||null})),sequences:(m.sequences||[]).map(q=>({...q,date:String(q.date||''),block:q.block==null?null:Number(q.block),occurrence_order:Number(q.occurrence_order)||1,spot_code:String(q.spot_code||'').trim().toUpperCase()}))};
   })};
@@ -1700,9 +1710,45 @@ function aiOfficialCount(map,date,block){
 function aiValidation(map,state=aiClassifyMap(map)){
   const items=[],group=new Map();for(const q of map.sequences||[]){if(q.block==null)continue;const k=`${q.date}|${q.block}`;group.set(k,(group.get(k)||0)+1);}for(const [k,own] of group){const [date,b]=k.split('|'),block=Number(b),official=aiOfficialCount(map,date,block),existing=aiExistingCount(map,date,block,state),combined=existing+own;let level='ok',label='Confere';if(official===0&&combined>0){level='danger';label='Sem posição oficial';}else if(combined>official){level='danger';label=`Excede em ${combined-official}`;}else if(combined<official){level='warn';label=`Parcial: faltam ${official-combined}`;}items.push({date,block,own,existing,combined,official,level,label});}return items;
 }
-function aiMapHasStructuralIssue(m){
-  return !m.cargo||!m._partyResolved||!m.start_date||!m.end_date||(m.spots||[]).some(sp=>!Number.isFinite(Number(sp.duration_seconds))||Number(sp.duration_seconds)<1||Number(sp.duration_seconds)>300)||(m.sequences||[]).some(q=>!q.date||q.block==null||![1,2,3].includes(Number(q.block))||!q.spot_code);
+function aiMapStructuralProblems(m){
+  const problems=[];
+  if(!m.cargo)problems.push('Cargo não identificado.');
+  if(!m._partyResolved)problems.push('Partido/coligação não associado à programação oficial.');
+  if(!String(m.candidate_name||'').trim())problems.push('Candidato não identificado.');
+  if(!m.start_date||!m.end_date)problems.push('Período incompleto.');
+  else if(m.end_date<m.start_date)problems.push('Data final anterior à data inicial.');
+  if(m.map_type!=='insercoes')problems.push(`Tipo ${m.map_type||'desconhecido'} não pode ser cadastrado como inserção avulsa. Blocos-programa e mapas mistos devem seguir fluxo separado.`);
+
+  const spots=m.spots||[],spotCodes=new Set();
+  for(const sp of spots){
+    const code=String(sp.code||'').trim().toUpperCase();
+    if(!code)problems.push('Há spot sem código.');
+    else if(spotCodes.has(code))problems.push(`Código de spot duplicado: ${code}.`);
+    else spotCodes.add(code);
+    const dur=Number(sp.duration_seconds);
+    if(!Number.isFinite(dur)||dur<1||dur>300)problems.push(`Duração inválida ou não informada no spot ${code||'sem código'}.`);
+  }
+  if(!spots.length)problems.push('Nenhum spot foi identificado.');
+
+  const positions=new Set();
+  for(const q of m.sequences||[]){
+    const date=String(q.date||''),block=q.block==null?null:Number(q.block),order=Number(q.occurrence_order),code=String(q.spot_code||'').trim().toUpperCase();
+    if(!date)problems.push('Há inserção sem data.');
+    else if(m.start_date&&date<m.start_date||m.end_date&&date>m.end_date)problems.push(`Inserção em ${date} fora do período do mapa.`);
+    if(block==null||![1,2,3].includes(block))problems.push(`Bloco inválido/não informado em ${date||'data desconhecida'}.`);
+    if(!Number.isInteger(order)||order<1)problems.push(`Ordem inválida em ${date||'data desconhecida'} bloco ${block??'?'}.`);
+    if(!code)problems.push(`Inserção sem código de spot em ${date||'data desconhecida'}.`);
+    else if(!spotCodes.has(code))problems.push(`A sequência referencia o spot ${code}, que não existe na lista de materiais.`);
+    if(date&&block!=null&&Number.isInteger(order)&&order>0){
+      const key=`${date}|${block}|${order}`;
+      if(positions.has(key))problems.push(`Ordem duplicada em ${date}, bloco ${block}, posição ${order}.`);
+      positions.add(key);
+    }
+  }
+  if(!(m.sequences||[]).length)problems.push('Nenhuma inserção foi extraída do mapa.');
+  return [...new Set(problems)];
 }
+function aiMapHasStructuralIssue(m){return aiMapStructuralProblems(m).length>0;}
 function aiHasBlockingIssues(){
   if(!aiMapAnalysis?.maps?.length)return true;const actionable=aiMapAnalysis.maps.filter(m=>aiClassifyMap(m).status!=='identical');if(!actionable.length)return true;return actionable.some(aiMapHasStructuralIssue);
 }
@@ -1739,7 +1785,7 @@ function renderAiMapPreview(){
     const missingDuration=(m.spots||[]).map((sp,si)=>({sp,si})).filter(x=>!Number.isFinite(Number(x.sp.duration_seconds))||Number(x.sp.duration_seconds)<1||Number(x.sp.duration_seconds)>300);if(missingDuration.length){const de=document.createElement('div');de.className='ai-seq-summary';de.innerHTML='<div class="ai-note"><strong>Informe a duração que o documento não permitiu identificar:</strong></div><table><thead><tr><th>Spot</th><th>Título</th><th>Duração (s)</th></tr></thead><tbody>'+missingDuration.map(x=>`<tr><td>${escapeHtml(x.sp.code)}</td><td>${escapeHtml(x.sp.title||x.sp.code)}</td><td><input type="number" min="1" max="300" class="ai-spot-duration ai-unresolved" data-i="${idx}" data-si="${x.si}" value="${x.sp.duration_seconds||''}" placeholder="Obrigatório"></td></tr>`).join('')+'</tbody></table>';card.appendChild(de);}
     if(v.length){const tbl=document.createElement('div');tbl.className='ai-seq-summary';tbl.innerHTML='<table><thead><tr><th>Data</th><th>Bloco</th><th>Este mapa</th><th>Outros mapas</th><th>Total após cadastro</th><th>Oficial</th><th>Situação</th></tr></thead><tbody>'+v.map(x=>`<tr><td>${isoToBr(x.date)}</td><td>${x.block}</td><td>${x.own}</td><td>${x.existing}</td><td>${x.combined}</td><td>${x.official}</td><td><span class="ai-badge ${x.level}">${x.label}</span></td></tr>`).join('')+'</tbody></table>';card.appendChild(tbl);}
     const unresolvedSeq=(m.sequences||[]).map((q,si)=>({q,si})).filter(x=>x.q.block==null);if(unresolvedSeq.length){const ed=document.createElement('div');ed.className='ai-seq-summary';ed.innerHTML='<div class="ai-note"><strong>Defina o bloco das posições que o documento não informou:</strong></div><table><thead><tr><th>Data</th><th>Spot</th><th>Bloco</th></tr></thead><tbody>'+unresolvedSeq.map(x=>`<tr><td>${isoToBr(x.q.date)}</td><td>${escapeHtml(x.q.spot_code)}</td><td><select class="ai-seq-block ai-unresolved" data-i="${idx}" data-si="${x.si}"><option value="">Selecione…</option><option value="1">Bloco 1</option><option value="2">Bloco 2</option><option value="3">Bloco 3</option></select></td></tr>`).join('')+'</tbody></table>';card.appendChild(ed);}
-    const warns=[...(m.warnings||[])];if(unresolvedSeq.length)warns.push('Há inserções sem bloco identificado no documento. Selecione os blocos acima antes de confirmar.');if(missingDuration.length)warns.push('Há spot sem duração informada. O cadastro ficará bloqueado até você informar a duração; nenhum valor será presumido.');if(warns.length){const ul=document.createElement('ul');ul.className='ai-warning-list';ul.innerHTML=warns.map(w=>`<li>${escapeHtml(w)}</li>`).join('');card.appendChild(ul);}
+    const warns=[...(m.warnings||[]),...aiMapStructuralProblems(m).map(x=>`Revisão obrigatória: ${x}`)];if(unresolvedSeq.length)warns.push('Há inserções sem bloco identificado no documento. Selecione os blocos acima antes de confirmar.');if(missingDuration.length)warns.push('Há spot sem duração informada. O cadastro ficará bloqueado até você informar a duração; nenhum valor será presumido.');if(warns.length){const ul=document.createElement('ul');ul.className='ai-warning-list';ul.innerHTML=[...new Set(warns)].map(w=>`<li>${escapeHtml(w)}</li>`).join('');card.appendChild(ul);}
     if(state.status!=='identical'&&(state.status==='correction'||danger||low)){const lab=document.createElement('label');lab.className='ai-confirm-line';const text=state.status==='correction'?'Confirmo que revisei as alterações e quero cadastrar este mapa como uma nova versão, preservando o anterior.':'Confirmo que revisei as divergências/baixa confiança deste mapa.';lab.innerHTML=`<input type="checkbox" class="ai-risk-confirm" data-i="${idx}"> ${text}`;card.appendChild(lab);}
     box.appendChild(card);
   });
@@ -1797,11 +1843,11 @@ async function aiFreshSession(){
   return session;
 }
 async function analyzeAiMap(){
-  const file=$('aiMapFile')?.files?.[0],msg=$('aiMapStatus');if(!file){setMessage(msg,'Selecione um PDF ou imagem do mapa.','warn');return;}if(!client||!currentUser){setMessage(msg,'Entre no sistema antes de analisar o mapa.','warn');return;}const allowed=['application/pdf','image/png','image/jpeg','image/webp'];if(!allowed.includes(file.type)){setMessage(msg,'Use PDF, JPG, PNG ou WEBP.','warn');return;}if(file.size>18*1024*1024){setMessage(msg,'O arquivo está acima de 18 MB. Reduza o tamanho antes de enviar.','warn');return;}
+  const file=$('aiMapFile')?.files?.[0],msg=$('aiMapStatus');if(!file){setMessage(msg,'Selecione um PDF ou imagem do mapa.','warn');return;}if(!client||!currentUser){setMessage(msg,'Entre no sistema antes de analisar o mapa.','warn');return;}const mimeType=aiFileMimeType(file),allowed=['application/pdf','image/png','image/jpeg','image/webp'];if(!allowed.includes(mimeType)){setMessage(msg,'Use PDF, JPG, PNG ou WEBP.','warn');return;}if(file.size>18*1024*1024){setMessage(msg,'O arquivo está acima de 18 MB. Reduza o tamanho antes de enviar.','warn');return;}
   aiMapAnalysis=null;aiMapFileRef=file;$('aiMapPreview').innerHTML='';$('confirmAiMap').disabled=true;setMessage(msg,'Analisando o documento com IA… isso pode levar alguns segundos.','info');setMediaBusy(true);
   try{
     const session=await aiFreshSession(),data_base64=await fileToBase64(file);
-    const res=await client.functions.invoke('analyze-media-map',{headers:{Authorization:`Bearer ${session.access_token}`},body:{filename:file.name,mime_type:file.type,data_base64}});
+    const res=await client.functions.invoke('analyze-media-map',{headers:{Authorization:`Bearer ${session.access_token}`},body:{filename:file.name,mime_type:mimeType,data_base64}});
     if(res.error)throw new Error(await aiFunctionErrorMessage(res.error));
     if(res.data?.error)throw new Error(res.data.error);
     aiMapAnalysis=aiPrepareAnalysis(res.data);if(!aiMapAnalysis.maps.length)throw new Error('A IA não identificou nenhum mapa no documento.');renderAiMapPreview();setMessage(msg,`${aiMapAnalysis.maps.length} mapa(s) identificado(s). Confira os dados abaixo antes de confirmar.`,'ok');
@@ -1830,7 +1876,7 @@ async function confirmAiMapImport(){
       let deactivated=[];if(state.status==='correction'&&activePrevious.length){const ids=activePrevious.map(x=>x.id);const rr=await client.from(MAP_TABLE).update({active:false,updated_at:new Date().toISOString(),updated_by:currentWho()}).in('id',ids);if(rr.error){await client.from(MAP_TABLE).update({active:false,updated_at:new Date().toISOString(),updated_by:currentWho()}).eq('id',mr.data.id);throw rr.error;}deactivated=ids;}
       auditMaps.push({new_map_id:mr.data.id,new_map_number:resolved.value,status:state.status,previous_map_ids:deactivated,previous_map_number:state.existing?.map_number||null,internal_number:resolved.internal,positions:seq.length});seqCount+=seq.length;
     }
-    await auditEvent({eventType:'MAP_IMPORT',programDate:affectedDates[0]||null,summary:`Mapa(s) importado(s) com IA: ${aiMapFileRef.name}`,details:{maps:mapsCount,sequences:seqCount,dates:affectedDates,source:'gemini-3.8-flash',duplicates_skipped:duplicates,corrections:correctionCount,records:auditMaps,preservation:'Mapas anteriores de correções foram apenas inativados; sequências e checks não foram apagados.'}});await loadMediaData(true);
+    await auditEvent({eventType:'MAP_IMPORT',programDate:affectedDates[0]||null,summary:`Mapa(s) importado(s) com IA: ${aiMapFileRef.name}`,details:{maps:mapsCount,sequences:seqCount,dates:affectedDates,source:aiMapAnalysis?.model||'gemini-3.8-flash',duplicates_skipped:duplicates,corrections:correctionCount,records:auditMaps,preservation:'Mapas anteriores de correções foram apenas inativados; sequências e checks não foram apagados.'}});await loadMediaData(true);
     const parts=[`${mapsCount} mapa(s) e ${seqCount} inserção(ões) cadastrados com sucesso.`];if(correctionCount)parts.push(`${correctionCount} correção(ões) registrada(s) como nova versão, preservando os mapas anteriores.`);if(duplicates)parts.push(`${duplicates} mapa(s) idêntico(s) já existente(s) foi/foram ignorado(s).`);setMessage(msg,parts.join(' '),'ok');aiMapAnalysis=null;aiMapFileRef=null;$('aiMapPreview').innerHTML='';$('aiMapFile').value='';
   }catch(e){console.error('[IA mapas confirmar]',e);setMessage(msg,`Cadastro não concluído: ${e.message||e}`,'error');}finally{setMediaBusy(false);updateAiConfirmState();}
 }
