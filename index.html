@@ -216,6 +216,62 @@
   @media(max-width:650px){ .wrap{padding:8px} .hero{padding:12px} .dashboard-grid{grid-template-columns:repeat(2,1fr)} .filters{grid-template-columns:1fr 1fr} .map-layout{grid-template-columns:1fr} .spot-edit-row{grid-template-columns:1fr} }
 
 .ai-import-details{grid-column:1/-1}.ai-import-bar{align-items:end}.ai-preview{display:grid;gap:12px;margin-top:12px}.ai-card{border:1px solid var(--border);border-radius:14px;padding:14px;background:var(--panel-soft,#fafafa)}.ai-card-head{display:flex;gap:10px;justify-content:space-between;align-items:flex-start;flex-wrap:wrap}.ai-card h3{margin:0 0 4px}.ai-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px 12px;margin-top:10px}.ai-kv{font-size:.92rem}.ai-kv b{display:block;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}.ai-badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}.ai-badge{display:inline-flex;align-items:center;border-radius:999px;padding:4px 8px;font-size:.78rem;font-weight:700;background:#eef2ff}.ai-badge.ok{background:#ecfdf3}.ai-badge.warn{background:#fff7ed}.ai-badge.danger{background:#fef2f2}.ai-seq-summary{margin-top:10px;overflow:auto}.ai-seq-summary table{min-width:620px}.ai-warning-list{margin:8px 0 0;padding-left:18px}.ai-confirm-line{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:.9rem}.ai-raw-party{color:var(--muted);font-size:.8rem}.ai-card select,.ai-card input{width:100%}.ai-unresolved{outline:2px solid #f59e0b}.ai-note{font-size:.82rem;color:var(--muted);margin-top:8px}.ai-state-box{margin-top:10px;padding:10px 12px;border-radius:10px;border:1px solid var(--border);font-size:.88rem}.ai-state-box.ok{background:#ecfdf3}.ai-state-box.warn{background:#fff7ed}.ai-state-box.danger{background:#fef2f2}.ai-diff-list{margin:6px 0 0;padding-left:18px}.ai-number-note{font-size:.76rem;color:var(--muted);margin-top:4px}.ai-number-note.warn{color:#92400e;font-weight:600}.ai-diff-table{margin-top:8px;overflow:auto}.ai-diff-table table{min-width:620px}.ai-health-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 0 12px;padding:9px 11px;border:1px solid var(--border);border-radius:10px;background:#f8fafc}.ai-health-indicator{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}.ai-health-dot{width:10px;height:10px;border-radius:50%;background:#94a3b8;box-shadow:0 0 0 3px rgba(148,163,184,.15);flex:none}.ai-health-indicator.available .ai-health-dot{background:#16a34a;box-shadow:0 0 0 3px rgba(22,163,74,.14)}.ai-health-indicator.unstable .ai-health-dot{background:#f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,.16)}.ai-health-indicator.unavailable .ai-health-dot,.ai-health-indicator.error .ai-health-dot{background:#dc2626;box-shadow:0 0 0 3px rgba(220,38,38,.14)}.ai-health-label{font-weight:700;font-size:.86rem}.ai-health-detail{font-size:.78rem;color:var(--muted)}.ai-health-refresh{white-space:nowrap;padding:6px 10px;font-size:.8rem}@media(max-width:720px){.ai-health-row{align-items:flex-start;flex-direction:column}.ai-health-refresh{width:100%}}
+
+  /* Revisão visual — Mapas de Mídia */
+  #mapasView .panel { padding:16px; }
+  #mapasView > .panel > h2 { font-size:20px; margin-bottom:5px; }
+  #mapasView > .panel > p.help { max-width:980px; margin-bottom:10px; }
+  #mapasView .admin-tools-grid { margin-top:12px; padding:12px; border:1px solid #e4e9ee; border-radius:12px; background:#f8fafc; }
+  #mapasView .admin-tools-grid details.tool-details { background:#fff; margin-top:0; }
+  #mapasView .ai-import-details { box-shadow:0 1px 0 rgba(15,23,42,.02); }
+  #mapasView .ai-import-details > summary { color:#173f6b; font-size:13px; }
+  .registered-maps-details { margin-top:14px; border:1px solid #d8e1e9; border-radius:12px; background:#fff; overflow:hidden; box-shadow:0 2px 8px rgba(23,63,107,.04); }
+  .registered-maps-details > summary { cursor:pointer; list-style:none; min-height:66px; padding:12px 14px; display:flex; align-items:center; justify-content:space-between; gap:14px; background:linear-gradient(180deg,#ffffff,#f8fafc); }
+  .registered-maps-details > summary::-webkit-details-marker { display:none; }
+  .registered-maps-details > summary::after { content:'▾'; flex:none; width:28px; height:28px; display:grid; place-items:center; border:1px solid #dbe3ea; border-radius:8px; color:#526579; background:#fff; font-size:13px; transition:transform .15s ease; }
+  .registered-maps-details[open] > summary::after { transform:rotate(180deg); }
+  .registered-maps-details[open] > summary { border-bottom:1px solid #e5ebf0; }
+  .registered-maps-summary-main { min-width:0; display:flex; align-items:center; gap:11px; flex:1; }
+  .registered-maps-icon { flex:none; width:36px; height:36px; display:grid; place-items:center; border-radius:10px; background:#edf4fa; color:#173f6b; font-size:18px; font-weight:900; }
+  .registered-maps-summary-copy { min-width:0; display:flex; flex-direction:column; gap:2px; }
+  .registered-maps-summary-copy strong { font-size:14px; color:#1d344a; }
+  .registered-maps-summary-copy small { color:var(--muted); font-size:11.5px; line-height:1.35; font-weight:500; }
+  .registered-maps-details .map-list-count { margin-left:auto; padding:5px 9px; border-radius:999px; background:#eef3f7; color:#4d6276; font-size:11px; }
+  .registered-maps-body { padding:12px; background:#fbfcfd; }
+  .registered-maps-body .map-list-toolbar { display:grid; grid-template-columns:minmax(260px,2fr) minmax(170px,.8fr) minmax(170px,.8fr); gap:9px; padding:0 0 11px; background:transparent; border-bottom:0; align-items:end; }
+  .registered-maps-body .map-list-toolbar .map-search-wrap { grid-column:auto; }
+  .registered-maps-body .map-list-toolbar label { margin-bottom:4px; font-size:10px; }
+  .registered-maps-body .map-list-toolbar input,.registered-maps-body .map-list-toolbar select { min-height:38px; font-size:12.5px; background:#fff; }
+  .registered-maps-body .map-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:8px; max-height:520px; overflow:auto; padding:2px; background:transparent; }
+  .registered-maps-body .map-group-title { position:static; grid-column:1/-1; margin:7px 0 0; padding:7px 3px 5px; background:transparent; backdrop-filter:none; }
+  .registered-maps-body .map-card { height:100%; min-height:94px; padding:10px 11px; }
+  .registered-maps-body .map-card.active { background:#f0f6fc; }
+  .map-editor-shell { margin-top:14px; border:1px solid #dce4eb; border-radius:12px; background:#f8fafc; padding:13px; }
+  .map-editor-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:2px 2px 11px; border-bottom:1px solid #e4e9ee; }
+  .map-editor-head h3 { margin:2px 0 3px; font-size:16px; color:#203449; }
+  .map-editor-head p { margin:0; color:var(--muted); font-size:12px; line-height:1.4; max-width:760px; }
+  .maps-eyebrow { display:block; color:#6b7c8e; font-size:9.5px; font-weight:900; letter-spacing:.09em; text-transform:uppercase; }
+  .map-editor-actions { flex:none; display:flex; gap:7px; flex-wrap:wrap; justify-content:flex-end; }
+  .map-editor-shell .section-card { margin-top:11px; background:#fff; border-color:#e0e6ec; padding:14px; box-shadow:0 1px 2px rgba(15,23,42,.025); }
+  .map-step-heading { display:flex; align-items:flex-start; gap:10px; padding-bottom:10px; margin-bottom:11px; border-bottom:1px solid #edf1f4; }
+  .map-step-number { flex:none; width:28px; height:28px; display:grid; place-items:center; border-radius:8px; background:#173f6b; color:#fff; font-size:12px; font-weight:900; }
+  .map-step-heading h3 { margin:0 0 2px; font-size:15px; color:#203449; }
+  .map-step-heading p { margin:0; color:var(--muted); font-size:11.5px; line-height:1.4; }
+  .map-data-grid { grid-template-columns:repeat(3,minmax(190px,1fr)); align-items:start; }
+  .map-data-grid > div { min-width:0; }
+  .map-notes-field { margin-top:11px; }
+  .map-source-upload { padding:10px; border:1px dashed #d6e0e8; border-radius:9px; background:#fafcfd; }
+  .map-step-actions { justify-content:flex-end; padding-top:2px; }
+  .map-active-toggle { padding:0 10px; border:1px solid #dce4ea; border-radius:9px; background:#fbfcfd; }
+  .map-active-toggle span { display:flex; flex-direction:column; gap:1px; }
+  .map-active-toggle strong { font-size:12px; color:#32475a; }
+  .map-active-toggle small { color:var(--muted); font-size:10.5px; }
+  .sequence-summary-box { min-height:39px; display:flex; align-items:center; padding:8px 10px; border:1px solid #e1e7ec; border-radius:9px; background:#fafcfd; }
+  #mapasView .spot-edit-row { padding:9px 8px; margin-bottom:6px; border:1px solid #e5eaef; border-radius:9px; background:#fbfcfd; }
+  #mapasView .spot-edit-row:last-child { border-bottom:1px solid #e5eaef; }
+  #mapasView .sequence-row { background:#fbfcfd; }
+  @media(max-width:1050px){ .map-data-grid{grid-template-columns:repeat(2,minmax(180px,1fr))} .registered-maps-body .map-list-toolbar{grid-template-columns:1fr 1fr}.registered-maps-body .map-list-toolbar .map-search-wrap{grid-column:1/-1} }
+  @media(max-width:720px){ .registered-maps-details > summary{align-items:flex-start}.registered-maps-summary-copy small{display:none}.registered-maps-details .map-list-count{margin-left:0}.registered-maps-body .map-list-toolbar,.map-data-grid{grid-template-columns:1fr}.registered-maps-body .map-list-toolbar .map-search-wrap{grid-column:auto}.map-editor-head{flex-direction:column}.map-editor-actions{width:100%;justify-content:flex-start}.map-editor-actions button{flex:1}.registered-maps-body .map-list{grid-template-columns:1fr} }
 </style>
 </head>
 <body>
@@ -355,59 +411,70 @@
           <div id="officialImportStatus" class="import-preview">Aguardando conexão.</div><div id="officialImportMessage" class="message" role="status"></div>
         </div></details>
       </div>
-      <div class="map-layout">
-        <aside class="map-sidebar">
-          <div class="actions" style="margin-top:0"><button type="button" class="primary media-action" id="newMapButton">+ Novo mapa</button><button type="button" class="media-action" id="reloadMapsButton">Atualizar</button></div>
-          <div class="map-list-panel">
-            <div class="map-list-heading"><strong>Mapas cadastrados</strong><span class="map-list-count" id="mapListSummary">0 mapas</span></div>
-            <div class="map-list-toolbar">
-              <div class="map-search-wrap"><input id="mapListSearch" type="search" placeholder="Buscar candidato, partido ou mapa…" aria-label="Buscar mapas cadastrados"></div>
-              <select id="mapListCargo" aria-label="Filtrar mapas por cargo"><option value="">Todos os cargos</option><option>Presidente</option><option>Governador</option><option>Senador</option><option>Deputado Federal</option><option>Deputado Distrital</option></select>
-              <select id="mapListStatus" aria-label="Filtrar mapas por status"><option value="">Todos os status</option><option value="current">Vigentes</option><option value="future">Futuros</option><option value="ended">Encerrados</option><option value="inactive">Inativos</option></select>
-            </div>
-            <div class="map-list" id="mapList" aria-label="Mapas cadastrados"></div>
+      <details class="registered-maps-details" id="registeredMapsDetails">
+        <summary>
+          <div class="registered-maps-summary-main">
+            <span class="registered-maps-icon" aria-hidden="true">▦</span>
+            <span class="registered-maps-summary-copy"><strong>Mapas já cadastrados</strong><small>Abra para pesquisar, filtrar e selecionar um mapa para edição.</small></span>
           </div>
-        </aside>
-        <div>
-          <div class="section-card">
-            <h3>Dados do mapa</h3>
-            <div class="form-grid">
-              <div><label for="mapCargo">Cargo</label><select id="mapCargo"><option>Presidente</option><option>Governador</option><option>Senador</option><option>Deputado Federal</option><option>Deputado Distrital</option></select></div>
-              <div><label for="mapParty">Partido / Federação / Coligação</label><select id="mapParty"></select></div>
-              <div><label for="mapCandidateName">Candidato / identificação</label><input id="mapCandidateName" type="text" placeholder="Ex.: MICHELLE BOLSONARO"></div>
-              <div><label for="mapNumber">Número do mapa (se houver)</label><input id="mapNumber" type="text" placeholder="Ex.: 001-2026"><div class="ai-number-note">Deixe em branco se o documento não informar um número formal.</div></div>
-              <div><label for="mapInternalIdentifier">Identificador interno</label><input id="mapInternalIdentifier" type="text" readonly placeholder="Gerado automaticamente quando necessário"><div class="ai-number-note">Uso interno do sistema; não substitui o número oficial do mapa.</div></div>
-              <div><label for="mapSourceFile">Arquivo fonte</label><input id="mapSourceFile" type="text" placeholder="Ex.: mapa_28_a_31.pdf"></div>
-              <div><label for="mapTitle">Título / identificação</label><input id="mapTitle" type="text" placeholder="Ex.: Agosto - mapa 28 a 31"></div>
-              <div><label for="mapStart">Data inicial</label><input id="mapStart" type="date"></div>
-              <div><label for="mapEnd">Data final</label><input id="mapEnd" type="date"></div>
-              <div><label>Habilitação</label><div class="toggle-line"><input id="mapActive" type="checkbox" checked><span>Usar este mapa na programação</span></div></div>
-            </div>
-            <div><label for="mapNotes">Observações</label><textarea id="mapNotes" placeholder="Opcional"></textarea></div>
-            <div class="file-inline"><div><label for="mapPdfUpload">PDF original do mapa (opcional)</label><input id="mapPdfUpload" type="file" accept="application/pdf"></div><button type="button" id="openMapPdf" disabled>📄 Abrir PDF anexado</button></div>
-            <div class="actions"><button type="button" class="success media-action" id="saveMapButton">Salvar mapa</button><button type="button" class="danger media-action" id="deleteMapButton">Excluir mapa</button></div>
+          <span class="map-list-count" id="mapListSummary">0 mapas</span>
+        </summary>
+        <div class="registered-maps-body">
+          <div class="map-list-toolbar">
+            <div class="map-search-wrap"><label for="mapListSearch">Pesquisar</label><input id="mapListSearch" type="search" placeholder="Candidato, partido, número ou identificador…" aria-label="Buscar mapas cadastrados"></div>
+            <div><label for="mapListCargo">Cargo</label><select id="mapListCargo" aria-label="Filtrar mapas por cargo"><option value="">Todos os cargos</option><option>Presidente</option><option>Governador</option><option>Senador</option><option>Deputado Federal</option><option>Deputado Distrital</option></select></div>
+            <div><label for="mapListStatus">Status</label><select id="mapListStatus" aria-label="Filtrar mapas por status"><option value="">Todos os status</option><option value="current">Vigentes</option><option value="future">Futuros</option><option value="ended">Encerrados</option><option value="inactive">Inativos</option></select></div>
           </div>
+          <div class="map-list" id="mapList" aria-label="Mapas cadastrados"></div>
+        </div>
+      </details>
 
-          <div class="section-card" id="spotsSection">
-            <h3>Materiais / spots</h3>
-            <p class="help">Cadastre o código e o título exatamente como aparecem no mapa (L1, L2, L3, Spot A etc.). O nome do arquivo de áudio é opcional.</p>
-            <div id="spotEditor"></div>
-            <div class="actions"><button type="button" class="media-action" id="addSpotButton">+ Adicionar spot</button><button type="button" class="success media-action" id="saveSpotsButton">Salvar materiais</button></div>
+      <div class="map-editor-shell">
+        <div class="map-editor-head">
+          <div>
+            <span class="maps-eyebrow">Cadastro e edição manual</span>
+            <h3>Editar mapa de mídia</h3>
+            <p>Selecione um mapa na caixa acima ou crie um novo. As alterações são salvas por etapa para reduzir o risco de sobrescrever dados sem querer.</p>
           </div>
+          <div class="map-editor-actions"><button type="button" class="primary media-action" id="newMapButton">+ Novo mapa</button><button type="button" class="media-action" id="reloadMapsButton">↻ Atualizar mapas</button></div>
+        </div>
 
-          <div class="section-card" id="sequenceSection">
-            <h3>Ordem das inserções</h3>
-            <p class="help">Escolha a data e o bloco e informe quantas inserções pertencem a <strong>este mapa/candidato</strong>. A ordem interna do mapa é preservada. Quando dois candidatos compartilham a mesma coligação/cargo (como no Senado), o site combina os mapas automaticamente sem alterar a ordem de cada um.</p>
-            <div class="sequence-toolbar">
-              <div><label for="sequenceDate">Data</label><input id="sequenceDate" type="date"></div>
-              <div><label for="sequenceBlock">Bloco</label><select id="sequenceBlock"><option value="1">Bloco 1</option><option value="2">Bloco 2</option><option value="3">Bloco 3</option></select></div>
-              <div><label for="sequenceCount">Qtd. neste mapa</label><input id="sequenceCount" type="number" min="0" max="50" value="0"></div>
-              <div class="muted" id="sequenceSummary"></div>
-            </div>
-            <div id="sequenceWarning" class="message" role="status"></div>
-            <div class="sequence-list" id="sequenceEditor"></div>
-            <div class="actions"><button type="button" class="success media-action" id="saveSequenceButton">Salvar ordem deste bloco</button><button type="button" class="danger media-action" id="clearSequenceButton">Limpar este bloco</button></div>
+        <div class="section-card map-step-card">
+          <div class="map-step-heading"><span class="map-step-number">1</span><div><h3>Dados do mapa</h3><p>Identificação, período de veiculação, arquivo fonte e situação do mapa.</p></div></div>
+          <div class="form-grid map-data-grid">
+            <div><label for="mapCargo">Cargo</label><select id="mapCargo"><option>Presidente</option><option>Governador</option><option>Senador</option><option>Deputado Federal</option><option>Deputado Distrital</option></select></div>
+            <div><label for="mapParty">Partido / Federação / Coligação</label><select id="mapParty"></select></div>
+            <div><label for="mapCandidateName">Candidato / identificação</label><input id="mapCandidateName" type="text" placeholder="Ex.: MICHELLE BOLSONARO"></div>
+            <div><label for="mapNumber">Número do mapa (se houver)</label><input id="mapNumber" type="text" placeholder="Ex.: 001-2026"><div class="ai-number-note">Deixe em branco se o documento não informar um número formal.</div></div>
+            <div><label for="mapInternalIdentifier">Identificador interno</label><input id="mapInternalIdentifier" type="text" readonly placeholder="Gerado automaticamente quando necessário"><div class="ai-number-note">Uso interno do sistema; não substitui o número oficial do mapa.</div></div>
+            <div><label for="mapSourceFile">Arquivo fonte</label><input id="mapSourceFile" type="text" placeholder="Ex.: mapa_28_a_31.pdf"></div>
+            <div><label for="mapTitle">Título / identificação</label><input id="mapTitle" type="text" placeholder="Ex.: Agosto - mapa 28 a 31"></div>
+            <div><label for="mapStart">Data inicial</label><input id="mapStart" type="date"></div>
+            <div><label for="mapEnd">Data final</label><input id="mapEnd" type="date"></div>
+            <div><label>Habilitação</label><div class="toggle-line map-active-toggle"><input id="mapActive" type="checkbox" checked><span><strong>Mapa ativo</strong><small>Usar este mapa na programação</small></span></div></div>
           </div>
+          <div class="map-notes-field"><label for="mapNotes">Observações</label><textarea id="mapNotes" placeholder="Observações internas sobre este mapa (opcional)"></textarea></div>
+          <div class="file-inline map-source-upload"><div><label for="mapPdfUpload">PDF original do mapa (opcional)</label><input id="mapPdfUpload" type="file" accept="application/pdf"></div><button type="button" id="openMapPdf" disabled>📄 Abrir PDF anexado</button></div>
+          <div class="actions map-step-actions"><button type="button" class="success media-action" id="saveMapButton">Salvar dados do mapa</button><button type="button" class="danger media-action" id="deleteMapButton">Excluir mapa</button></div>
+        </div>
+
+        <div class="section-card map-step-card" id="spotsSection">
+          <div class="map-step-heading"><span class="map-step-number">2</span><div><h3>Materiais / spots</h3><p>Cadastre os códigos e títulos exatamente como aparecem no mapa. O arquivo de áudio é opcional.</p></div></div>
+          <div id="spotEditor"></div>
+          <div class="actions map-step-actions"><button type="button" class="media-action" id="addSpotButton">+ Adicionar spot</button><button type="button" class="success media-action" id="saveSpotsButton">Salvar materiais</button></div>
+        </div>
+
+        <div class="section-card map-step-card" id="sequenceSection">
+          <div class="map-step-heading"><span class="map-step-number">3</span><div><h3>Ordem das inserções</h3><p>Escolha data e bloco e defina a ordem interna dos spots deste mapa. A combinação entre candidatos é feita automaticamente pelo sistema.</p></div></div>
+          <div class="sequence-toolbar">
+            <div><label for="sequenceDate">Data</label><input id="sequenceDate" type="date"></div>
+            <div><label for="sequenceBlock">Bloco</label><select id="sequenceBlock"><option value="1">Bloco 1</option><option value="2">Bloco 2</option><option value="3">Bloco 3</option></select></div>
+            <div><label for="sequenceCount">Qtd. neste mapa</label><input id="sequenceCount" type="number" min="0" max="50" value="0"></div>
+            <div class="muted sequence-summary-box" id="sequenceSummary"></div>
+          </div>
+          <div id="sequenceWarning" class="message" role="status"></div>
+          <div class="sequence-list" id="sequenceEditor"></div>
+          <div class="actions map-step-actions"><button type="button" class="success media-action" id="saveSequenceButton">Salvar ordem deste bloco</button><button type="button" class="danger media-action" id="clearSequenceButton">Limpar este bloco</button></div>
         </div>
       </div>
     </section>
