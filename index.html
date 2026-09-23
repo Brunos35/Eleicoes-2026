@@ -1718,9 +1718,18 @@ function aiCanonicalCargo(raw=''){
 function aiCanonicalParty(cargo,raw=''){
   const parties=uniquePartiesForCargo(cargo),n=normalize(raw).replace(/[^a-z0-9]+/g,' ').trim();
   if(!n)return '';
-  const exact=parties.find(p=>normalize(p).replace(/[^a-z0-9]+/g,' ').trim()===n);if(exact)return exact;
+  const normalizedParties=parties.map(p=>({p,pn:normalize(p).replace(/[^a-z0-9]+/g,' ').trim()}));
+  const exact=normalizedParties.find(x=>x.pn===n);if(exact)return exact.p;
+  // Documentos costumam trazer o nome canônico seguido da composição completa da coligação.
+  // Quando o nome oficial usado na programação estiver literalmente contido no texto lido,
+  // preferimos essa associação antes do cálculo por tokens. Isso resolve, por exemplo,
+  // "COLIGAÇÃO BRASIL PRONTO PRA MAIS: PSB / PDT - Federações..." -> "BRASIL PRONTO PRA MAIS -".
+  const contained=normalizedParties
+    .filter(x=>x.pn.length>=5&&(n.includes(x.pn)||x.pn.includes(n)))
+    .sort((a,b)=>b.pn.length-a.pn.length)[0];
+  if(contained)return contained.p;
   const tokens=n.split(/\s+/).filter(x=>x.length>2&&!['partido','federacao','coligacao','diretorio','nacional','distrito','federal'].includes(x));
-  let best='',score=0;for(const p of parties){const pn=normalize(p).replace(/[^a-z0-9]+/g,' ').trim(),pt=pn.split(/\s+/);let hit=0;for(const x of tokens)if(pt.includes(x)||pn.includes(x))hit++;const sc=tokens.length?hit/tokens.length:0;if(sc>score){score=sc;best=p;}}
+  let best='',score=0;for(const {p,pn} of normalizedParties){const pt=pn.split(/\s+/);let hit=0;for(const x of tokens)if(pt.includes(x)||pn.includes(x))hit++;const sc=tokens.length?hit/tokens.length:0;if(sc>score){score=sc;best=p;}}
   return score>=0.6?best:'';
 }
 function aiTextKey(v=''){
