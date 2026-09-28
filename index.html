@@ -49,6 +49,9 @@
   .checkcell { width:62px; text-align:center; } .check { width:22px; height:22px; cursor:pointer; accent-color:var(--accent2); }
   .datecell { white-space:nowrap; font-weight:700; } .num { text-align:center; width:72px; font-variant-numeric:tabular-nums; }
   .party { min-width:330px; } .candidate { min-width:210px; font-weight:700; color:#27384a; } .cargo { white-space:nowrap; min-width:145px; } .who { min-width:190px; } .when { min-width:145px; white-space:nowrap; }
+  .official-revision-row { box-shadow:inset 4px 0 0 #d97706; }
+  .official-revision-badge { display:inline-flex; margin-top:5px; border-radius:999px; padding:3px 7px; background:#fff3d6; color:#8a4b00; border:1px solid #f2c66d; font-size:10px; font-weight:900; letter-spacing:.03em; white-space:nowrap; }
+  .sobra-badge { display:inline-flex; border-radius:8px; padding:5px 8px; background:#eef2f6; color:#415264; font-size:11px; font-weight:900; }
   .spotcell { min-width:250px; }
   .spot-main { font-weight:900; color:#37245d; font-size:14px; line-height:1.25; margin-bottom:5px; }
   .spot-meta { display:flex; flex-wrap:wrap; gap:5px 7px; align-items:center; margin-top:2px; }
@@ -807,6 +810,18 @@ function brToIso(s){ const m=/^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s||''); return m
 function isoToBr(s){ const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s||''); return m?`${m[3]}/${m[2]}/${m[1]}`:''; }
 function ordinal(n){ return `${n}ª`; }
 function td(text,cls=''){ const el=document.createElement('td'); if(cls)el.className=cls; el.textContent=text; return el; }
+function isOfficialRevisionRow(r){ return r?.updatedBy==='official-revision-2026-09-25-v2'; }
+function partyCellForRow(r){
+  const cell=td(r.party,'party');
+  if(isOfficialRevisionRow(r)){
+    const badge=document.createElement('div');
+    badge.className='official-revision-badge';
+    badge.textContent='NOVA GRADE • 2ª distribuição';
+    badge.title='Linha alterada pela nova distribuição oficial de Governador, vigente no sistema a partir de 28/09/2026.';
+    cell.appendChild(badge);
+  }
+  return cell;
+}
 function currentWho(){ return currentUser?.email || currentUser?.id || 'usuário'; }
 function mapCandidate(m){ return (m?.candidate_name||'').trim() || candidateFor(m?.cargo,m?.program_party); }
 function candidateForRow(r){ return (r?.candidateName||r?.spotInfo?.candidateName||spotAssignments.get(r?.id)?.candidateName||'').trim() || candidateFor(r?.cargo,r?.party); }
@@ -822,8 +837,8 @@ function manualSpotAsSpot(m){
   return {code:m.spot_code||'',title:m.spot_title||m.spot_code||'Spot definido pela rádio',duration:Number(m.duration_seconds)||30,audioFilename:m.audio_filename||known?.audio_filename||'',audioStoragePath:known?.audio_storage_path||'',mapNumber:'',candidateName:'',origin:'radio'};
 }
 function effectiveSpotForRow(r){ const manual=manualSpotForRow(r); return manual?manualSpotAsSpot(manual):mapSpotForRow(r); }
-function mapStatusForRow(r){ return mapSpotForRow(r)?'received':'absent'; }
-function mapStatusLabel(status){ return status==='received'?'Mapa recebido':'Mapa de Mídia Ausente'; }
+function mapStatusForRow(r){ if(r?.cargo==='Governador'&&r?.party==='SOBRA')return'not_applicable';return mapSpotForRow(r)?'received':'absent'; }
+function mapStatusLabel(status){ return status==='received'?'Mapa recebido':status==='not_applicable'?'Não se aplica (SOBRA)':'Mapa de Mídia Ausente'; }
 function spotOriginForRow(r){ return manualSpotForRow(r)?'radio':mapSpotForRow(r)?'map':'none'; }
 function spotOriginLabel(origin){ return origin==='radio'?'Definido pela rádio':origin==='map'?'Mapa de mídia':'Não informado'; }
 function sameSpot(a,b){
@@ -929,6 +944,11 @@ function renderSpotCell(r){
   const cell=document.createElement('td'); cell.className='spotcell';
   const map=mapSpotForRow(r),manual=manualSpotForRow(r),a=effectiveSpotForRow(r),mapStatus=mapStatusForRow(r),origin=spotOriginForRow(r),conflict=spotConflictForRow(r);
   if(!a){
+    if(r.cargo==='Governador'&&r.party==='SOBRA'){
+      const sobra=document.createElement('span');sobra.className='sobra-badge';sobra.textContent='SOBRA — nova grade';cell.appendChild(sobra);
+      const note=document.createElement('div');note.className='source-note';note.textContent='Posição identificada como SOBRA na 2ª distribuição oficial. Não é tratada como mapa de mídia ausente.';cell.appendChild(note);
+      return cell;
+    }
     const missing=document.createElement('span'); missing.className='spot-missing'; missing.textContent='MAPA DE MÍDIA AUSENTE'; cell.appendChild(missing);
     const note=document.createElement('div');note.className='source-note';note.textContent='Sem ordem enviada pelo partido. A rádio pode definir o material manualmente.';cell.appendChild(note);
     if(!r.extraMedia){const actions=document.createElement('div');actions.className='spot-actions';const define=document.createElement('button');define.type='button';define.textContent='+ Definir spot';define.disabled=!currentUser;define.addEventListener('click',()=>openManualSpotEditor(r));actions.appendChild(define);cell.appendChild(actions);}return cell;
@@ -1046,7 +1066,7 @@ function renderOfficial(){
   const frag=document.createDocumentFragment();tbody.textContent='';
   for(const r of visibleRows){
     const tr=document.createElement('tr');markRowDataset(tr,r);const isDone=isRowDone(r);if(isDone)tr.classList.add('done');
-    tr.appendChild(makeCheckCell(r,isDone));tr.appendChild(td(r.date,'datecell'));tr.appendChild(td(r.block,'num'));tr.appendChild(td(r.seq,'num'));tr.appendChild(td(r.party,'party'));tr.appendChild(td(candidateForRow(r),'candidate'));tr.appendChild(td(r.cargo,'cargo'));tr.appendChild(renderSpotCell(r));appendMetaCells(tr,r,isDone);frag.appendChild(tr);
+    if(isOfficialRevisionRow(r))tr.classList.add('official-revision-row');tr.appendChild(makeCheckCell(r,isDone));tr.appendChild(td(r.date,'datecell'));tr.appendChild(td(r.block,'num'));tr.appendChild(td(r.seq,'num'));tr.appendChild(partyCellForRow(r));tr.appendChild(td(candidateForRow(r),'candidate'));tr.appendChild(td(r.cargo,'cargo'));tr.appendChild(renderSpotCell(r));appendMetaCells(tr,r,isDone);frag.appendChild(tr);
   }
   tbody.appendChild(frag);empty.hidden=visibleRows.length!==0;
 }
@@ -1061,7 +1081,7 @@ function renderSchedule(){
       const label=document.createElement('span');label.textContent=`${a.windowLabel} • Bloco oficial ${r.block} • ${visibleInSlot===total?`${total} spot(s)`:`${visibleInSlot} visível(is) de ${total} spot(s)`}`;sc.appendChild(label);const editBlock=document.createElement('button');editBlock.type='button';editBlock.className='block-edit-btn';editBlock.textContent='✎';editBlock.title=`Editar a janela ${a.windowLabel}`;editBlock.setAttribute('aria-label',`Editar a janela de 30 minutos ${a.windowLabel} de ${r.date}`);editBlock.disabled=!currentUser||!scheduleSettingsAvailable;editBlock.addEventListener('click',()=>editScheduleWindow(r,a));sc.appendChild(editBlock);sr.appendChild(sc);frag.appendChild(sr);lastSlot=a.slotKey;
     }
     const tr=document.createElement('tr');markRowDataset(tr,r);const isDone=isRowDone(r);if(isDone)tr.classList.add('done');
-    tr.appendChild(makeCheckCell(r,isDone));tr.appendChild(makeScheduleTimeCell(r,a));tr.appendChild(td(a.windowLabel,'windowcell'));tr.appendChild(td(r.block,'num'));tr.appendChild(td(r.seq||'—','num'));tr.appendChild(td(r.party,'party'));tr.appendChild(td(candidateForRow(r),'candidate'));
+    if(isOfficialRevisionRow(r))tr.classList.add('official-revision-row');tr.appendChild(makeCheckCell(r,isDone));tr.appendChild(makeScheduleTimeCell(r,a));tr.appendChild(td(a.windowLabel,'windowcell'));tr.appendChild(td(r.block,'num'));tr.appendChild(td(r.seq||'—','num'));tr.appendChild(partyCellForRow(r));tr.appendChild(td(candidateForRow(r),'candidate'));
     const cargoCell=document.createElement('td');cargoCell.className='cargo';const tag=document.createElement('span');tag.className='cargo-tag';tag.textContent=r.cargo;cargoCell.appendChild(tag);tr.appendChild(cargoCell);tr.appendChild(renderSpotCell(r));appendMetaCells(tr,r,isDone);frag.appendChild(tr);
   }
   scheduleBody.appendChild(frag);scheduleEmpty.hidden=visibleRows.length!==0;updateScheduleInfo();
@@ -1086,7 +1106,7 @@ function applyRowStateByRef(type,id){
   document.querySelectorAll(`tr[data-checktype="${type}"][data-checkid="${id}"]`).forEach(tr=>{tr.classList.toggle('done',isDone);const cb=tr.querySelector('input.check');if(cb)cb.checked=isDone;const who=tr.querySelector('.meta-who');if(who)who.textContent=isDone?(meta?.checked_by||'—'):'—';const when=tr.querySelector('.meta-when');if(when)when.textContent=isDone?formatWhen(meta?.checked_at):'—';});
 }
 function updateStats(){
-  const dv=visibleRows.reduce((n,r)=>n+(isRowDone(r)?1:0),0),mv=visibleRows.reduce((n,r)=>n+(mapStatusForRow(r)==='absent'?1:0),0),cv=visibleRows.reduce((n,r)=>n+((spotConflictForRow(r)||lateMapAfterProgramming(r))?1:0),0);
+  const dv=visibleRows.reduce((n,r)=>n+(isRowDone(r)?1:0),0),mv=visibleRows.reduce((n,r)=>n+(mapStatusForRow(r)==='absent'?1:0),0),cv=visibleRows.reduce((n,r)=>n+(reportHasConflict(r)?1:0),0);
   const source=viewFilter.value==='schedule'?(operationalRows.length?operationalRows:DATA):DATA,da=source.reduce((n,r)=>n+(isRowDone(r)?1:0),0),pct=source.length?Math.round((da/source.length)*1000)/10:0;
   visibleCount.textContent=visibleRows.length.toLocaleString('pt-BR');doneVisible.textContent=dv.toLocaleString('pt-BR');missingVisible.textContent=mv.toLocaleString('pt-BR');conflictVisible.textContent=cv.toLocaleString('pt-BR');doneAll.textContent=da.toLocaleString('pt-BR');percentAll.textContent=pct.toLocaleString('pt-BR')+'%';progressBar.style.width=Math.min(100,pct)+'%';
 }
@@ -1094,8 +1114,8 @@ function reportSpotForRow(r){ return effectiveSpotForRow(r); }
 function reportStatusForRow(r){ return isRowDone(r)?'done':'pending'; }
 function reportStatusLabel(status){ return status==='done'?'Programado':'Pendente'; }
 function reportMapStatusForRow(r){ return mapStatusForRow(r); }
-function reportConflictLabel(r){ const c=spotConflictForRow(r);if(c)return`Spot da rádio diverge do mapa (${c.map.title||c.map.code})`;if(lateMapAfterProgramming(r))return'Mapa cadastrado após a programação — conferir';if(newAfterLockForRow(r))return'Nova posição recebida após a trava do dia — conferir';return'Sem conflito'; }
-function reportHasConflict(r){ return !!spotConflictForRow(r)||lateMapAfterProgramming(r)||newAfterLockForRow(r); }
+function reportConflictLabel(r){ const c=spotConflictForRow(r);if(c)return`Spot da rádio diverge do mapa (${c.map.title||c.map.code})`;if(lateMapAfterProgramming(r))return'Mapa cadastrado após a programação — conferir';if(newAfterLockForRow(r))return'Nova posição recebida após a trava do dia — conferir';if(isOfficialRevisionRow(r))return'Nova grade oficial — 2ª distribuição';return'Sem conflito'; }
+function reportHasConflict(r){ return !!spotConflictForRow(r)||lateMapAfterProgramming(r)||newAfterLockForRow(r)||isOfficialRevisionRow(r); }
 function reportFilteredRows(){
   const scheduleMode=reportViewFilter.value==='schedule',source=scheduleMode?(operationalRows.length?operationalRows:DATA):DATA;
   const d=reportDateFilter.value,b=reportBlockFilter.value,c=reportCargoFilter.value,s=reportStatusFilter.value,ms=reportMapStatusFilter.value,origin=reportOriginFilter.value,cf=reportConflictFilter.value,q=normalize(reportSearchFilter.value.trim());
@@ -1642,8 +1662,8 @@ function refreshDateOptions(){
 async function loadOfficialProgramming(silent=false){
   if(!client)return false;const all=[];const pageSize=1000;let from=0;
   try{
-    while(true){const {data,error}=await client.from(OFFICIAL_TABLE).select('line_id,program_date,block,sequence_number,program_party,cargo,source_page').order('program_date').order('block').order('sequence_number').range(from,from+pageSize-1);if(error)throw error;all.push(...(data||[]));if((data||[]).length<pageSize)break;from+=pageSize;if(from>50000)throw new Error('Quantidade inesperada de linhas na programação oficial.');}
-    if(all.length){DATA=all.map(x=>({id:Number(x.line_id),date:isoToBr(x.program_date),block:String(x.block),seq:String(x.sequence_number),party:x.program_party,cargo:x.cargo,page:x.source_page??null}));officialDataAvailable=true;}
+    while(true){const {data,error}=await client.from(OFFICIAL_TABLE).select('line_id,program_date,block,sequence_number,program_party,cargo,source_page,updated_by').order('program_date').order('block').order('sequence_number').range(from,from+pageSize-1);if(error)throw error;all.push(...(data||[]));if((data||[]).length<pageSize)break;from+=pageSize;if(from>50000)throw new Error('Quantidade inesperada de linhas na programação oficial.');}
+    if(all.length){DATA=all.map(x=>({id:Number(x.line_id),date:isoToBr(x.program_date),block:String(x.block),seq:String(x.sequence_number),party:x.program_party,cargo:x.cargo,page:x.source_page??null,updatedBy:x.updated_by||''}));officialDataAvailable=true;}
     else{DATA=[...EMBEDDED_DATA];officialDataAvailable=false;}
   }catch(e){DATA=[...EMBEDDED_DATA];officialDataAvailable=false;if(!silent)setMessage(appMessage,`Programação oficial do Supabase indisponível; usando a cópia interna de contingência. ${e.message}`,'warn');}
   rebuildProgramIndex();operationalRows=DATA;refreshDateOptions();if($('officialImportStatus'))$('officialImportStatus').textContent=officialDataAvailable?`${DATA.length.toLocaleString('pt-BR')} linhas carregadas do Supabase.`:`Usando ${DATA.length.toLocaleString('pt-BR')} linhas da contingência interna.`;return officialDataAvailable;
