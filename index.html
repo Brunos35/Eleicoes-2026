@@ -1759,6 +1759,14 @@ function aiPdfFindMonthlyDayHeader(items){
 }
 function aiPdfBlockFromRow(items){
   const joined=items.map(x=>x.text).join(' ');
+  const norm=normalize(joined).replace(/\s+/g,' ').trim();
+  // Alguns PIs (ex.: Cappelli/PSB) não escrevem "1º Bloco" na linha da grade;
+  // mostram apenas o número do bloco na primeira coluna e a faixa horária na coluna
+  // seguinte. A faixa horária é um identificador muito mais seguro do que aceitar
+  // qualquer "1/2/3" solto, pois evita confundir a linha dos dias do mês com bloco.
+  if(/(?:^|\s)5h\s*(?:as|a|-)\s*11h(?:\s|$)/i.test(norm))return 1;
+  if(/(?:^|\s)11h\s*(?:as|a|-)\s*18h(?:\s|$)/i.test(norm))return 2;
+  if(/(?:^|\s)18h\s*(?:as|a|-)\s*(?:00h|0h|24h)(?:\s|$)/i.test(norm))return 3;
   const m=joined.match(/(?:^|\s)([123])\s*(?:º|°|o)?\s*Bloco\s*:?/i);
   if(m)return Number(m[1]);
   for(const it of items){const x=String(it.text||'').trim();const mm=x.match(/^([123])\s*(?:º|°)$/);if(mm)return Number(mm[1]);}
