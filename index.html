@@ -1948,10 +1948,22 @@ function aiIdentityCandidates(map){
   return (mediaMaps||[]).filter(x=>x.program_party===map.program_party&&x.cargo===map.cargo&&x.start_date===map.start_date&&x.end_date===map.end_date&&aiCandidateEquivalent(x.candidate_name||'',map.candidate_name||'')).sort((a,b)=>(a.active===false?1:0)-(b.active===false?1:0)||Number(b.id)-Number(a.id));
 }
 function aiMapOwnCount(map,date,block){return (map?.sequences||[]).filter(q=>q.date===date&&Number(q.block)===Number(block)).length;}
-function aiMapFillsOfficialExactly(map){
-  if(!map?.start_date||!map?.end_date||!map?.program_party||!map?.cargo)return false;
+function aiSequencesFillOfficialExactly(map,seqs){
+  if(!map?.start_date||!map?.end_date||!map?.program_party||!map?.cargo||!Array.isArray(seqs)||!seqs.length)return false;
   const start=new Date(`${map.start_date}T12:00:00Z`),end=new Date(`${map.end_date}T12:00:00Z`);if(Number.isNaN(start.getTime())||Number.isNaN(end.getTime())||start>end)return false;
-  let hasOfficial=false;for(let d=new Date(start);d<=end;d.setUTCDate(d.getUTCDate()+1)){const iso=d.toISOString().slice(0,10);for(let b=1;b<=3;b++){const official=aiOfficialCount(map,iso,b),own=aiMapOwnCount(map,iso,b);if(official>0)hasOfficial=true;if(own!==official)return false;}}return hasOfficial;
+  const counts=new Map();
+  for(const q of seqs){const date=String(q?.date||q?.sequence_date||''),block=Number(q?.block);if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||![1,2,3].includes(block)||date<map.start_date||date>map.end_date)return false;const k=`${date}|${block}`;counts.set(k,(counts.get(k)||0)+1);}
+  let hasOfficial=false;
+  for(let d=new Date(start);d<=end;d.setUTCDate(d.getUTCDate()+1)){const iso=d.toISOString().slice(0,10);for(let b=1;b<=3;b++){const official=aiOfficialCount(map,iso,b),own=counts.get(`${iso}|${b}`)||0;if(official>0)hasOfficial=true;if(own!==official)return false;}}
+  return hasOfficial;
+}
+function aiMapFillsOfficialExactly(map){
+  if(aiSequencesFillOfficialExactly(map,map?.sequences||[]))return true;
+  // A leitura principal da IA pode deslocar uma célula em grades mensais. Se a leitura
+  // posicional do próprio PDF fecha 100% a programação oficial, ela é suficiente para
+  // reconhecer a sobreposição como correção. A sequência posicional ainda precisa ser
+  // aplicada explicitamente pelo usuário antes da confirmação.
+  return aiSequencesFillOfficialExactly(map,map?._pdfGridSequences||[]);
 }
 function aiOverlappingCorrectionCandidates(map){
   if(!map?.program_party||!map?.cargo||!map?.start_date||!map?.end_date||!String(map.candidate_name||'').trim())return [];
