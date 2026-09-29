@@ -1939,6 +1939,22 @@ function aiIdentityCandidates(map){
   if(!map?.program_party||!map?.cargo||!map?.start_date||!map?.end_date||!String(map.candidate_name||'').trim())return [];
   return (mediaMaps||[]).filter(x=>x.program_party===map.program_party&&x.cargo===map.cargo&&x.start_date===map.start_date&&x.end_date===map.end_date&&aiCandidateEquivalent(x.candidate_name||'',map.candidate_name||'')).sort((a,b)=>(a.active===false?1:0)-(b.active===false?1:0)||Number(b.id)-Number(a.id));
 }
+function aiMapOwnCount(map,date,block){return (map?.sequences||[]).filter(q=>q.date===date&&Number(q.block)===Number(block)).length;}
+function aiMapFillsOfficialExactly(map){
+  if(!map?.start_date||!map?.end_date||!map?.program_party||!map?.cargo)return false;
+  const start=new Date(`${map.start_date}T12:00:00Z`),end=new Date(`${map.end_date}T12:00:00Z`);if(Number.isNaN(start.getTime())||Number.isNaN(end.getTime())||start>end)return false;
+  let hasOfficial=false;for(let d=new Date(start);d<=end;d.setUTCDate(d.getUTCDate()+1)){const iso=d.toISOString().slice(0,10);for(let b=1;b<=3;b++){const official=aiOfficialCount(map,iso,b),own=aiMapOwnCount(map,iso,b);if(official>0)hasOfficial=true;if(own!==official)return false;}}return hasOfficial;
+}
+function aiOverlappingCorrectionCandidates(map){
+  if(!map?.program_party||!map?.cargo||!map?.start_date||!map?.end_date||!String(map.candidate_name||'').trim())return [];
+  const candidates=(mediaMaps||[]).filter(x=>x.active!==false&&x.program_party===map.program_party&&x.cargo===map.cargo&&aiCandidateEquivalent(x.candidate_name||'',map.candidate_name||'')&&x.start_date<=map.end_date&&x.end_date>=map.start_date);
+  if(!candidates.length)return [];
+  const incomingDates=new Set((map.sequences||[]).map(q=>q.date).filter(Boolean));
+  const overlaps=candidates.filter(x=>(mediaSequences||[]).some(q=>String(q.map_id)===String(x.id)&&incomingDates.has(q.sequence_date)));
+  if(!overlaps.length)return [];
+  if(map.replaces_previous||aiMapFillsOfficialExactly(map))return overlaps.sort((a,b)=>Number(b.id)-Number(a.id));
+  return [];
+}
 function aiDiffExistingMap(map,existing){
   const snapshot=aiExistingSnapshot(existing),oldSpots=new Map((snapshot.spots||[]).map(s=>[String(s.code||'').toUpperCase(),s])),newSpots=new Map((map.spots||[]).map(s=>[String(s.code||'').toUpperCase(),s])),spotChanges=[];
   const spotCodes=[...new Set([...oldSpots.keys(),...newSpots.keys()])].sort();
@@ -1954,6 +1970,7 @@ function aiClassifyMap(map){
   const exactActive=enriched.find(x=>x.map.active!==false&&aiSameSpots(map,x.snapshot)&&aiSameSequences(map,x.snapshot));if(exactActive)return {status:'identical',existing:exactActive.map,matches:candidates,diff:null,inactive:false};
   const covered=aiCoverageCandidates(map);if(covered.length)return {status:'covered',existing:covered[0],matches:covered,diff:null,inactive:false};
   const activePrimary=enriched.find(x=>x.map.active!==false);if(activePrimary)return {status:'correction',existing:activePrimary.map,matches:candidates,diff:aiDiffExistingMap(map,activePrimary.map),inactive:false};
+  const overlap=aiOverlappingCorrectionCandidates(map);if(overlap.length)return {status:'correction',existing:overlap[0],matches:overlap,diff:aiDiffExistingMap(map,overlap[0]),inactive:false,partialOverlap:true};
   const exactInactive=enriched.find(x=>aiSameSpots(map,x.snapshot)&&aiSameSequences(map,x.snapshot));if(exactInactive)return {status:'identical',existing:exactInactive.map,matches:candidates,diff:null,inactive:true};
   if(enriched.length)return {status:'correction',existing:enriched[0].map,matches:candidates,diff:aiDiffExistingMap(map,enriched[0].map),inactive:true};
   return {status:'new',existing:null,matches:[],diff:null,inactive:false};
@@ -2116,7 +2133,7 @@ function aiRenderStateBox(card,m,state){
     const d=document.createElement('div');d.className='ai-state-box ok';const inactive=state.existing?.active===false?' em uma versão anterior/inativa':'';d.innerHTML=`<strong>✓ Este mapa já está cadastrado${inactive} — ${(m.sequences||[]).length}/${(m.sequences||[]).length} posições idênticas.</strong><div class="ai-note">Registro encontrado: ${escapeHtml(mapIdentityText(state.existing))}. Nada será gravado novamente.</div>`;card.appendChild(d);return;
   }
   if(state.status==='correction'){
-    const d=document.createElement('div');d.className='ai-state-box warn';d.innerHTML=`<strong>⚠ Possível correção/substituição de mapa existente</strong><div class="ai-note">Comparado com ${escapeHtml(state.existing?.map_number||`ID ${state.existing?.id}`)}. Ao confirmar, o mapa anterior será preservado com suas sequências/checks e marcado como inativo; a nova versão será cadastrada separadamente.</div>`;
+    const d=document.createElement('div');d.className='ai-state-box warn';d.innerHTML=`<strong>⚠ Possível correção/substituição de mapa existente</strong><div class="ai-note">Comparado com ${escapeHtml(state.existing?.map_number||`ID ${state.existing?.id}`)}. Ao confirmar, os mapas anteriores sobrepostos serão preservados integralmente no histórico e marcados como inativos; se algum deles tiver dias fora do período corrigido, o site criará automaticamente um trecho ativo somente com essas posições não afetadas. A nova versão será cadastrada separadamente.</div>`;
     const diff=state.diff||{};if((diff.metaChanges||[]).length||(diff.spotChanges||[]).length){const ul=document.createElement('ul');ul.className='ai-diff-list';ul.innerHTML=[...(diff.metaChanges||[]),...(diff.spotChanges||[])].map(x=>`<li>${escapeHtml(x)}</li>`).join('');d.appendChild(ul);}if((diff.sequenceChanges||[]).length){const t=document.createElement('div');t.className='ai-diff-table';t.innerHTML='<table><thead><tr><th>Data</th><th>Bloco</th><th>Anterior</th><th>Novo</th></tr></thead><tbody>'+diff.sequenceChanges.map(x=>`<tr><td>${isoToBr(x.date)}</td><td>${x.block}</td><td>${escapeHtml(x.old)}</td><td>${escapeHtml(x.new)}</td></tr>`).join('')+'</tbody></table>';d.appendChild(t);}if(!(diff.total>0)){const n=document.createElement('div');n.className='ai-note';n.textContent='Os dados principais coincidem, mas o conteúdo não pôde ser considerado idêntico. Revise antes de confirmar.';d.appendChild(n);}card.appendChild(d);
   }
 }
@@ -2265,6 +2282,25 @@ async function analyzeAiMap(){
 async function uploadAiSource(mapId,file){
   if(!file)return null;const path=`mapas/${mapId}/${Date.now()}_${safeStorageName(file.name)}`;const up=await client.storage.from(MAP_BUCKET).upload(path,file,{upsert:false,contentType:file.type||undefined});if(up.error)throw up.error;const db=await client.from(MAP_TABLE).update({source_storage_path:path,source_file:file.name,updated_at:new Date().toISOString(),updated_by:currentWho()}).eq('id',mapId);if(db.error)throw db.error;return path;
 }
+async function aiPreserveCorrectionRemainders(previousMaps,incomingMap){
+  const start=incomingMap.start_date,end=incomingMap.end_date,residuals=[],deactivated=[];
+  for(const prev of previousMaps||[]){
+    const prevSeq=(mediaSequences||[]).filter(q=>String(q.map_id)===String(prev.id));
+    const keep=prevSeq.filter(q=>q.sequence_date<start||q.sequence_date>end);
+    if(keep.length&&keep.length<prevSeq.length){
+      const dates=keep.map(q=>q.sequence_date).sort(),minDate=dates[0],maxDate=dates[dates.length-1],base=`RETIDO-${prev.id}-${minDate.replaceAll('-','')}-${maxDate.replaceAll('-','')}`,used=new Set((mediaMaps||[]).map(x=>x.internal_identifier).filter(Boolean)),internalIdentifier=nextAvailableInternalIdentifier(base,used);
+      const clone={program_party:prev.program_party,cargo:prev.cargo,candidate_name:prev.candidate_name||null,map_number:null,internal_identifier:internalIdentifier,source_file:prev.source_file||null,source_storage_path:prev.source_storage_path||null,title:`${prev.title||'Mapa anterior'} — trecho preservado`,start_date:minDate,end_date:maxDate,active:true,notes:`Trecho preservado automaticamente ao registrar correção parcial. Origem: mapa ID ${prev.id}. O mapa original foi mantido integralmente no histórico e marcado como inativo; este registro contém somente as sequências fora do período corrigido ${start} a ${end}.`,created_by:currentWho(),updated_at:new Date().toISOString(),updated_by:currentWho()};
+      const mr=await client.from(MAP_TABLE).insert(clone).select().single();if(mr.error)throw mr.error;
+      const oldSpots=(mediaSpots||[]).filter(sp=>String(sp.map_id)===String(prev.id));
+      const spotPayload=oldSpots.map(sp=>({map_id:mr.data.id,code:sp.code,title:sp.title||null,duration_seconds:Number(sp.duration_seconds),audio_filename:sp.audio_filename||null,audio_storage_path:sp.audio_storage_path||null}));if(spotPayload.length){const sr=await client.from(SPOT_TABLE).insert(spotPayload);if(sr.error)throw sr.error;}
+      const fr=await client.from(SPOT_TABLE).select('id,code').eq('map_id',mr.data.id);if(fr.error)throw fr.error;const byCode=new Map((fr.data||[]).map(x=>[String(x.code).toUpperCase(),x.id])),oldSpotById=new Map(oldSpots.map(x=>[String(x.id),x]));
+      const seqPayload=keep.map(q=>{const oldSpot=oldSpotById.get(String(q.spot_id));return{map_id:mr.data.id,sequence_date:q.sequence_date,block:Number(q.block),occurrence_order:Number(q.occurrence_order),spot_id:byCode.get(String(oldSpot?.code||'').toUpperCase()),created_by:currentWho(),updated_at:new Date().toISOString()};});if(seqPayload.some(x=>!x.spot_id))throw new Error(`Falha ao preservar trecho não afetado do mapa ID ${prev.id}.`);if(seqPayload.length){const qr=await client.from(SEQUENCE_TABLE).insert(seqPayload);if(qr.error)throw qr.error;}
+      residuals.push({from_map_id:prev.id,residual_map_id:mr.data.id,internal_identifier:internalIdentifier,start_date:minDate,end_date:maxDate,positions:seqPayload.length});
+    }
+    const rr=await client.from(MAP_TABLE).update({active:false,updated_at:new Date().toISOString(),updated_by:currentWho()}).eq('id',prev.id);if(rr.error)throw rr.error;deactivated.push(prev.id);
+  }
+  return {deactivated,residuals};
+}
 async function confirmAiMapImport(){
   const msg=$('aiMapStatus');if(aiHasBlockingIssues()){const states=(aiMapAnalysis?.maps||[]).map(aiClassifyMap),hasActionable=states.some(s=>['new','correction'].includes(s.status));if(states.length&&!hasActionable)setMessage(msg,'Não há nada novo para gravar: os itens foram reconhecidos como já cadastrados/já cobertos ou como cargos sem inserções.','info');else setMessage(msg,'Ainda há campos obrigatórios sem revisão.','warn');return;}if(!aiMapAnalysis?.maps?.length||!aiMapFileRef)return;
   const classified=aiMapAnalysis.maps.map((m,i)=>({m,i,state:aiClassifyMap(m)})),actionable=classified.filter(x=>['new','correction'].includes(x.state.status)),duplicates=classified.filter(x=>x.state.status==='identical').length,coveredSkipped=classified.filter(x=>x.state.status==='covered').length,noInsertionsSkipped=classified.filter(x=>x.state.status==='no_insertions').length;if(!actionable.length){setMessage(msg,'Não há nada novo para gravar: os itens foram reconhecidos como já cadastrados/já cobertos ou como cargos sem inserções.','info');return;}
@@ -2282,8 +2318,8 @@ async function confirmAiMapImport(){
       const fr=await client.from(SPOT_TABLE).select('id,code').eq('map_id',mr.data.id);if(fr.error)throw fr.error;const byCode=new Map((fr.data||[]).map(x=>[String(x.code).toUpperCase(),x.id]));
       const seq=(m.sequences||[]).filter(q=>q.block!=null).map(q=>({map_id:mr.data.id,sequence_date:q.date,block:Number(q.block),occurrence_order:Number(q.occurrence_order),spot_id:byCode.get(String(q.spot_code).toUpperCase()),created_by:currentWho(),updated_at:new Date().toISOString()}));if(seq.some(q=>!q.spot_id))throw new Error(`Um spot do mapa ${resolved.display} não foi encontrado na lista de materiais.`);if(seq.length){const qr=await client.from(SEQUENCE_TABLE).insert(seq);if(qr.error)throw qr.error;}
       try{await uploadAiSource(mr.data.id,aiMapFileRef);}catch(e){console.warn('[IA mapas] arquivo fonte não anexado:',e?.message||e);}
-      let deactivated=[];if(state.status==='correction'&&activePrevious.length){const ids=activePrevious.map(x=>x.id);const rr=await client.from(MAP_TABLE).update({active:false,updated_at:new Date().toISOString(),updated_by:currentWho()}).in('id',ids);if(rr.error){await client.from(MAP_TABLE).update({active:false,updated_at:new Date().toISOString(),updated_by:currentWho()}).eq('id',mr.data.id);throw rr.error;}deactivated=ids;}
-      auditMaps.push({new_map_id:mr.data.id,new_map_number:resolved.mapNumber,internal_identifier:resolved.internalIdentifier,status:state.status,previous_map_ids:deactivated,previous_map_number:state.existing?.map_number||null,previous_internal_identifier:state.existing?.internal_identifier||null,internal_number:resolved.internal,positions:seq.length});seqCount+=seq.length;
+      let deactivated=[],residuals=[];if(state.status==='correction'&&activePrevious.length){try{const preserved=await aiPreserveCorrectionRemainders(activePrevious,m);deactivated=preserved.deactivated||[];residuals=preserved.residuals||[];}catch(err){await client.from(MAP_TABLE).update({active:false,updated_at:new Date().toISOString(),updated_by:currentWho()}).eq('id',mr.data.id);throw err;}}
+      auditMaps.push({new_map_id:mr.data.id,new_map_number:resolved.mapNumber,internal_identifier:resolved.internalIdentifier,status:state.status,previous_map_ids:deactivated,residual_maps:residuals,previous_map_number:state.existing?.map_number||null,previous_internal_identifier:state.existing?.internal_identifier||null,internal_number:resolved.internal,positions:seq.length});seqCount+=seq.length;
     }
     await auditEvent({eventType:'MAP_IMPORT',programDate:affectedDates[0]||null,summary:`Mapa(s) importado(s) com IA: ${aiMapFileRef.name}`,details:{maps:mapsCount,sequences:seqCount,dates:affectedDates,source:aiMapAnalysis?.model||'gemini-3.8-flash',primary_model:aiMapAnalysis?.primary_model||null,secondary_model:aiMapAnalysis?.secondary_model||null,tertiary_model:aiMapAnalysis?.tertiary_model||null,fallback_used:!!aiMapAnalysis?.fallback_used,model_attempts:(aiMapAnalysis?.attempts||[]).map(a=>({model:a?.model||null,status:a?.status??null,provider_code:a?.provider_code||null})),duplicates_skipped:duplicates,covered_skipped:coveredSkipped,no_insertions_skipped:noInsertionsSkipped,corrections:correctionCount,records:auditMaps,preservation:'Mapas anteriores de correções foram apenas inativados; sequências e checks não foram apagados.'}});await loadMediaData(true);
     const parts=[`${mapsCount} mapa(s) e ${seqCount} inserção(ões) cadastrados com sucesso.`];if(correctionCount)parts.push(`${correctionCount} correção(ões) registrada(s) como nova versão, preservando os mapas anteriores.`);if(duplicates)parts.push(`${duplicates} mapa(s) idêntico(s) já existente(s) foi/foram ignorado(s).`);if(coveredSkipped)parts.push(`${coveredSkipped} item(ns) já coberto(s) por conteúdo/posição foi/foram ignorado(s).`);if(noInsertionsSkipped)parts.push(`${noInsertionsSkipped} cargo(s) marcado(s) como sem inserções não gerou/geraram cadastro.`);setMessage(msg,parts.join(' '),'ok');aiMapAnalysis=null;aiMapFileRef=null;$('aiMapPreview').innerHTML='';$('aiMapFile').value='';
