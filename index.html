@@ -321,6 +321,12 @@
     <button type="button" class="tab" id="tabHistorico">Histórico</button>
   </nav>
 
+  <section class="panel hidden" id="turnPanel" aria-label="Turno eleitoral">
+    <div class="filters">
+      <div><label for="turnFilter">Turno eleitoral</label><select id="turnFilter"><option value="2" selected>2º turno</option><option value="1">1º turno</option></select></div>
+      <div><strong id="turnLabel">2º turno • 09/10 a 23/10/2026</strong><p class="help" id="turnStatus" role="status">Aguardando a grade oficial do segundo turno.</p></div>
+    </div>
+  </section>
   <div id="programacaoView" class="hidden">
     <section class="dashboard" id="dailyDashboard" aria-label="Painel diário">
       <div class="dashboard-head">
@@ -348,7 +354,7 @@
         <div><label for="mapStatusFilter">Mapa de mídia</label><select id="mapStatusFilter"><option value="">Todos</option><option value="received">Recebido</option><option value="absent">Ausente</option></select></div>
         <div style="grid-column:span 2"><label for="searchFilter">Pesquisar partido / candidato / federação / coligação</label><input id="searchFilter" type="search" placeholder="Ex.: LULA, CELINA LEÃO, MICHELLE BOLSONARO, PARTIDO LIBERAL..."></div>
       </div>
-      <div class="actions"><button type="button" class="primary sync-action" id="checkVisible">Marcar visíveis</button><button type="button" class="sync-action" id="uncheckVisible">Desmarcar visíveis</button><button type="button" id="nextPending">Ir para próximo pendente</button><button type="button" class="danger sync-action" id="clearAll">Limpar todos os checks</button><span class="save-note" id="operationNote">Alterações aparecem nos outros computadores em tempo real.</span></div>
+      <div class="actions"><button type="button" class="primary sync-action" id="checkVisible">Marcar visíveis</button><button type="button" class="sync-action" id="uncheckVisible">Desmarcar visíveis</button><button type="button" id="nextPending">Ir para próximo pendente</button><button type="button" class="danger sync-action" id="clearAll">Limpar checks deste turno</button><span class="save-note" id="operationNote">Alterações aparecem nos outros computadores em tempo real.</span></div>
       <div id="mediaProgramWarning" class="message" role="status"></div>
       <div id="appMessage" class="message" role="status"></div>
       <div class="stats secondary-stats" aria-live="polite"><div class="stat"><b id="visibleCount">0</b><span>linhas visíveis</span></div><div class="stat"><b id="doneVisible">0</b><span>visíveis programadas</span></div><div class="stat"><b id="missingVisible">0</b><span>mapas ausentes visíveis</span></div><div class="stat"><b id="conflictVisible">0</b><span>conflitos visíveis</span></div><div class="stat"><b id="doneAll">0</b><span>programadas no total</span></div><div class="stat"><b id="percentAll">0%</b><span>progresso total</span></div></div>
@@ -606,6 +612,28 @@ const AUDIO_BUCKET = 'spots-audio';
 const BATCH_SIZE = 200;
 
 const $ = (id) => document.getElementById(id);
+// A seleção de turno apenas delimita consultas e operações; nunca recria IDs.
+function selectedTurn(){return $('turnFilter')?.value==='1'?'1':'2';}
+function isoInTurn(iso,turn=selectedTurn()){
+  if(!iso)return false;
+  return turn==='2'?iso>='2026-10-09'&&iso<='2026-10-23':iso>='2026-08-28'&&iso<='2026-10-01';
+}
+function rowInTurn(r){return isoInTurn(brToIso(r.date));}
+function mapInTurn(m){
+  const start=selectedTurn()==='2'?'2026-10-09':'2026-08-28';
+  const end=selectedTurn()==='2'?'2026-10-23':'2026-10-01';
+  return !!m.start_date&&!!m.end_date&&m.start_date<=end&&m.end_date>=start;
+}
+function turnName(){return selectedTurn()==='2'?'2º turno':'1º turno';}
+function updateTurnStatus(){
+  $('turnLabel').textContent=selectedTurn()==='2'?'2º turno • 09/10 a 23/10/2026':'1º turno • 28/08 a 01/10/2026';
+  const rows=DATA.filter(rowInTurn),dates=new Set(rows.map(r=>r.date));
+  $('turnStatus').textContent=rows.length
+    ?`${rows.length.toLocaleString('pt-BR')} posições oficiais em ${dates.size} dia(s).${officialDataAvailable?'':' Cópia de contingência; confira a conexão antes de operar.'}`
+    :`Aguardando a grade oficial do ${selectedTurn()==='2'?'segundo':'primeiro'} turno. Nenhuma inserção oficial foi criada para este período.`;
+  const emptyText=rows.length?'Nenhuma inserção encontrada com esses filtros.':`Aguardando a grade oficial do ${turnName()}.`;
+  $('empty').textContent=emptyText;$('scheduleEmpty').textContent=emptyText;
+}
 const setupPanel=$('setupPanel'), loginPanel=$('loginPanel'), accountPanel=$('accountPanel'), navPanel=$('navPanel');
 const programacaoView=$('programacaoView'), mapasView=$('mapasView'), relatoriosView=$('relatoriosView'), historicoView=$('historicoView');
 const setupForm=$('setupForm'), loginForm=$('loginForm'), setupMessage=$('setupMessage'), loginMessage=$('loginMessage'), appMessage=$('appMessage'), mediaMessage=$('mediaMessage');
@@ -909,12 +937,12 @@ function showView(name){
   if(name==='historico') renderAudit();
 }
 function showAuthenticated(user){
-  currentUser=user; setupPanel.classList.add('hidden'); loginPanel.classList.add('hidden'); accountPanel.classList.remove('hidden'); navPanel.classList.remove('hidden');
+  currentUser=user; setupPanel.classList.add('hidden'); loginPanel.classList.add('hidden'); accountPanel.classList.remove('hidden'); navPanel.classList.remove('hidden');$('turnPanel').classList.remove('hidden');
   $('userEmail').textContent=user.email||user.id; setBusy(false); setMediaBusy(false); showView(currentView); startAiHealthMonitor();
 }
 function showLoggedOut(){
   currentUser=null; checked.clear(); checkMeta.clear(); checkedMedia.clear(); mediaCheckMeta.clear(); mediaMaps=[]; mediaSpots=[]; mediaSequences=[]; spotAssignments.clear(); manualSpots.clear(); dayLocks.clear(); lockedPositions.clear(); auditRows=[]; operationalRows=DATA;
-  accountPanel.classList.add('hidden'); navPanel.classList.add('hidden'); programacaoView.classList.add('hidden'); mapasView.classList.add('hidden'); relatoriosView.classList.add('hidden'); historicoView.classList.add('hidden'); setupPanel.classList.add('hidden'); loginPanel.classList.remove('hidden'); setLive('Aguardando login','wait');
+  accountPanel.classList.add('hidden'); navPanel.classList.add('hidden'); $('turnPanel').classList.add('hidden'); programacaoView.classList.add('hidden'); mapasView.classList.add('hidden'); relatoriosView.classList.add('hidden'); historicoView.classList.add('hidden'); setupPanel.classList.add('hidden'); loginPanel.classList.remove('hidden'); setLive('Aguardando login','wait');
   clearReconnectTimer(); reconnectAttempts=0; reconnectInProgress=false; stopAiHealthMonitor(); renderAiHealth({status:'unknown',message:'Entre no sistema para verificar o Gemini.'});
   if(watchdogTimer){clearInterval(watchdogTimer);watchdogTimer=null;}
   if(channel&&client){client.removeChannel(channel);channel=null;}
@@ -928,6 +956,7 @@ function applyFilters(){
   const d=dateFilter.value,b=blockFilter.value,c=cargoFilter.value,s=statusFilter.value,ms=mapStatusFilter.value,q=normalize(searchFilter.value.trim());
   const source=viewFilter.value==='schedule'?(operationalRows.length?operationalRows:DATA):DATA;
   visibleRows=source.filter(r=>{
+    if(!rowInTurn(r))return false;
     const isDone=isRowDone(r),candidate=candidateForRow(r),spot=effectiveSpotForRow(r),mapStatus=mapStatusForRow(r),origin=spotOriginForRow(r),conflict=spotConflictForRow(r);
     const searchable=[r.party,candidate,spot?.code,spot?.title,spot?.audioFilename,spot?.mapNumber,spot?.mapInternalIdentifier,mapStatusLabel(mapStatus),spotOriginLabel(origin),conflict?'conflito':''].map(normalize).join(' ');
     return(!d||r.date===d)&&(!b||String(r.block)===b)&&(!c||r.cargo===c)&&(!ms||mapStatus===ms)&&(!q||searchable.includes(q))&&(!s||(s==='done'?isDone:!isDone));
@@ -938,7 +967,7 @@ function applyFilters(){
     if(Number(a.block)!==Number(b.block))return Number(a.block)-Number(b.block);
     return (sa?.suggestedMinute??9999)-(sb?.suggestedMinute??9999)||(sa?.slotIndex??999)-(sb?.slotIndex??999)||String(rowDomKey(a)).localeCompare(String(rowDomKey(b)));
   });
-  render(); updateMediaProgramWarning(); updateDayLockUI();
+  render(); updateMediaProgramWarning(); updateDayLockUI();updateTurnStatus();
 }
 function renderSpotCell(r){
   const cell=document.createElement('td'); cell.className='spotcell';
@@ -1090,7 +1119,7 @@ function updateScheduleInfo(){
   if(viewFilter.value!=='schedule')return;
   const d=dateFilter.value,b=blockFilter.value;
   const source=operationalRows.length?operationalRows:DATA;
-  const base=source.filter(r=>(!d||r.date===d)&&(!b||String(r.block)===b));
+  const base=source.filter(r=>rowInTurn(r)&&(!d||r.date===d)&&(!b||String(r.block)===b));
   const counts=new Map();for(const r of base){const a=scheduleAssignments.get(rowDomKey(r));if(a)counts.set(a.slotKey,(counts.get(a.slotKey)||0)+1);}
   const vals=[...counts.values()];if(!vals.length){scheduleInfo.textContent='Nenhuma inserção para o período selecionado.';return;}
   const min=Math.min(...vals),max=Math.max(...vals),days=new Set(base.map(r=>r.date)).size,extras=base.filter(r=>r.extraMedia).length;
@@ -1107,7 +1136,7 @@ function applyRowStateByRef(type,id){
 }
 function updateStats(){
   const dv=visibleRows.reduce((n,r)=>n+(isRowDone(r)?1:0),0),mv=visibleRows.reduce((n,r)=>n+(mapStatusForRow(r)==='absent'?1:0),0),cv=visibleRows.reduce((n,r)=>n+(reportHasConflict(r)?1:0),0);
-  const source=viewFilter.value==='schedule'?(operationalRows.length?operationalRows:DATA):DATA,da=source.reduce((n,r)=>n+(isRowDone(r)?1:0),0),pct=source.length?Math.round((da/source.length)*1000)/10:0;
+  const source=(viewFilter.value==='schedule'?(operationalRows.length?operationalRows:DATA):DATA).filter(rowInTurn),da=source.reduce((n,r)=>n+(isRowDone(r)?1:0),0),pct=source.length?Math.round((da/source.length)*1000)/10:0;
   visibleCount.textContent=visibleRows.length.toLocaleString('pt-BR');doneVisible.textContent=dv.toLocaleString('pt-BR');missingVisible.textContent=mv.toLocaleString('pt-BR');conflictVisible.textContent=cv.toLocaleString('pt-BR');doneAll.textContent=da.toLocaleString('pt-BR');percentAll.textContent=pct.toLocaleString('pt-BR')+'%';progressBar.style.width=Math.min(100,pct)+'%';
 }
 function reportSpotForRow(r){ return effectiveSpotForRow(r); }
@@ -1120,6 +1149,7 @@ function reportFilteredRows(){
   const scheduleMode=reportViewFilter.value==='schedule',source=scheduleMode?(operationalRows.length?operationalRows:DATA):DATA;
   const d=reportDateFilter.value,b=reportBlockFilter.value,c=reportCargoFilter.value,s=reportStatusFilter.value,ms=reportMapStatusFilter.value,origin=reportOriginFilter.value,cf=reportConflictFilter.value,q=normalize(reportSearchFilter.value.trim());
   const rows=source.filter(r=>{
+    if(!rowInTurn(r))return false;
     const spot=reportSpotForRow(r),status=reportStatusForRow(r),mapStatus=reportMapStatusForRow(r),spotOrigin=spotOriginForRow(r),hasConflict=reportHasConflict(r),candidate=candidateForRow(r);
     const searchable=[r.party,candidate,spot?.code,spot?.title,spot?.audioFilename,spot?.mapNumber,spot?.mapInternalIdentifier,reportStatusLabel(status),mapStatusLabel(mapStatus),spotOriginLabel(spotOrigin),reportConflictLabel(r)].map(normalize).join(' ');
     return(!d||r.date===d)&&(!b||String(r.block)===b)&&(!c||r.cargo===c)&&(!s||status===s)&&(!ms||mapStatus===ms)&&(!origin||spotOrigin===origin)&&(!cf||(cf==='yes'?hasConflict:!hasConflict))&&(!q||searchable.includes(q));
@@ -1161,7 +1191,7 @@ function exportReportWorkbook(){
   const wsResumo=XLSX.utils.aoa_to_sheet(summaryRows);wsResumo['!cols']=[{wch:27},{wch:48}];const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Relatório');XLSX.utils.book_append_sheet(wb,wsResumo,'Resumo');const datePart=safeFilePart(reportDateFilter.value)||'todas-as-datas',statusPart=safeFilePart(reportStatusFilter.value||'todos');XLSX.writeFile(wb,`relatorio-programacao-${datePart}-${statusPart}.xlsx`);setMessage(reportMessage,`Planilha gerada com ${reportRows.length.toLocaleString('pt-BR')} linha(s).`,'ok');
 }
 function auditFilteredRows(){
-  const d=auditDateFilter.value,type=auditTypeFilter.value,q=normalize(auditSearchFilter.value.trim());return auditRows.filter(a=>{const cat=auditCategory(a.event_type),br=a.program_date?isoToBr(a.program_date):'',searchable=[a.actor,a.summary,a.event_type,a.party,a.cargo,br,a.block,JSON.stringify(a.details||{})].map(normalize).join(' ');return(!d||br===d)&&(!type||cat===type)&&(!q||searchable.includes(q));});
+  const d=auditDateFilter.value,type=auditTypeFilter.value,q=normalize(auditSearchFilter.value.trim());return auditRows.filter(a=>{if(a.program_date&&!isoInTurn(a.program_date))return false;const cat=auditCategory(a.event_type),br=a.program_date?isoToBr(a.program_date):'',searchable=[a.actor,a.summary,a.event_type,a.party,a.cargo,br,a.block,JSON.stringify(a.details||{})].map(normalize).join(' ');return(!d||br===d)&&(!type||cat===type)&&(!q||searchable.includes(q));});
 }
 function renderAudit(){
   if(!auditBody)return;const rows=auditFilteredRows();auditBody.textContent='';const frag=document.createDocumentFragment();for(const a of rows){const tr=document.createElement('tr');tr.appendChild(td(formatWhen(a.created_at),'when'));tr.appendChild(td(a.actor||'—','audit-actor'));tr.appendChild(td(auditTypeLabel(a.event_type),'audit-type'));tr.appendChild(td(a.program_date?isoToBr(a.program_date):'—','datecell'));tr.appendChild(td(a.block||'—','num'));tr.appendChild(td(a.summary||'—','audit-summary'));frag.appendChild(tr);}auditBody.appendChild(frag);auditEmpty.hidden=rows.length!==0;auditCount.textContent=`${rows.length.toLocaleString('pt-BR')} registro(s)`;
@@ -1215,7 +1245,7 @@ function exportAuditWorkbook(){
 }
 function updateMediaProgramWarning(){
   const box=$('mediaProgramWarning');
-  const relevant=mediaMismatches.filter(w=>(!dateFilter.value||w.date===dateFilter.value)&&(!blockFilter.value||String(w.block)===blockFilter.value)&&(!cargoFilter.value||w.cargo===cargoFilter.value)&&(!searchFilter.value||(normalize(w.party).includes(normalize(searchFilter.value))||normalize(w.candidates||'').includes(normalize(searchFilter.value))))),conflicts=visibleRows.filter(reportHasConflict).length,parts=[];
+  const relevant=mediaMismatches.filter(w=>rowInTurn(w)&&(!dateFilter.value||w.date===dateFilter.value)&&(!blockFilter.value||String(w.block)===blockFilter.value)&&(!cargoFilter.value||w.cargo===cargoFilter.value)&&(!searchFilter.value||(normalize(w.party).includes(normalize(searchFilter.value))||normalize(w.candidates||'').includes(normalize(searchFilter.value))))),conflicts=visibleRows.filter(reportHasConflict).length,parts=[];
   if(conflicts)parts.push(`⚠️ ${conflicts} linha(s) precisa(m) de revisão porque um mapa recebido diverge de uma escolha da rádio, chegou depois da programação ou criou uma nova posição após a trava do dia.`);
   if(relevant.length)parts.push(`${relevant.length} bloco(s) têm quantidade de mapas diferente da programação oficial. Isso não impede a programação: as posições sem ordem do partido continuam como “Mapa de Mídia Ausente” e podem receber spot definido pela rádio.`);
   setMessage(box,parts.join(' '),parts.length?'warn':'info');
@@ -1511,17 +1541,16 @@ async function runRowBatches(rows,state){
   }catch(e){setMessage(appMessage,`A sincronização foi interrompida: ${e.message}`,'error');await Promise.all([loadChecks(),loadMediaChecks()]);}finally{setBusy(false);endCheckSave();}
 }
 async function clearAllSharedChecks(){
-  const total=checked.size+checkedMedia.size;if(!total)return;if(!confirm(`Apagar as ${total.toLocaleString('pt-BR')} marcações compartilhadas?`))return;
-  beginCheckSave();setBusy(true,'Limpando marcações…');try{
-    const [a,b]=await Promise.all([client.from(CHECK_TABLE).delete().gte('line_id',0),client.from(MEDIA_CHECK_TABLE).delete().neq('position_key','')]);
-    if(a.error)throw a.error;if(b.error)throw b.error;checked.clear();checkMeta.clear();checkedMedia.clear();mediaCheckMeta.clear();applyFilters();auditEvent({eventType:'CLEAR_ALL_CHECKS',summary:`Todas as ${total} marcações compartilhadas foram apagadas`,details:{total}});setMessage(appMessage,'Marcações apagadas.','ok');
-  }catch(e){setMessage(appMessage,`Não foi possível limpar: ${e.message}`,'error');}finally{setBusy(false);endCheckSave();}
+  const rows=(operationalRows.length?operationalRows:DATA).filter(r=>rowInTurn(r)&&isRowDone(r));
+  if(!rows.length){setMessage(appMessage,'Nenhuma marcação neste turno.','info');return;}
+  if(!confirm(`Limpar as marcações de ${rows.length} posição(ões) do ${turnName()}? As marcações do outro turno serão preservadas.`))return;
+  await runRowBatches(rows,false);
 }
 
 
-function uniquePartiesForCargo(cargo){ return [...new Set(DATA.filter(r=>r.cargo===cargo).map(r=>r.party))].sort((a,b)=>a.localeCompare(b,'pt-BR')); }
+function uniquePartiesForCargo(cargo){ return [...new Set(DATA.filter(r=>rowInTurn(r)&&r.cargo===cargo).map(r=>r.party))].sort((a,b)=>a.localeCompare(b,'pt-BR')); }
 function updateMapCandidateInfo(){const input=$('mapCandidateName');if(input)input.placeholder=candidateFor($('mapCargo').value,$('mapParty').value)==='—'?'Opcional':candidateFor($('mapCargo').value,$('mapParty').value);}
-function refreshPartyOptions(preferred=''){ const cargo=$('mapCargo').value;const parties=uniquePartiesForCargo(cargo);$('mapParty').innerHTML='';for(const p of parties){const o=document.createElement('option');o.value=p;o.textContent=p;$('mapParty').appendChild(o);}if(preferred&&parties.includes(preferred))$('mapParty').value=preferred;updateMapCandidateInfo(); }
+function refreshPartyOptions(preferred=''){ const cargo=$('mapCargo').value;const parties=uniquePartiesForCargo(cargo);if(preferred&&!parties.includes(preferred))parties.push(preferred);$('mapParty').innerHTML='';for(const p of parties){const o=document.createElement('option');o.value=p;o.textContent=p;$('mapParty').appendChild(o);}if(preferred&&parties.includes(preferred))$('mapParty').value=preferred;updateMapCandidateInfo(); }
 function getSelectedMap(){ return mediaMaps.find(m=>String(m.id)===String(selectedMapId))||null; }
 function mapSpots(mapId){ return mediaSpots.filter(s=>String(s.map_id)===String(mapId)).sort((a,b)=>a.code.localeCompare(b.code,'pt-BR')); }
 function mapSequences(mapId){ return mediaSequences.filter(s=>String(s.map_id)===String(mapId)); }
@@ -1537,6 +1566,7 @@ function renderMapList(){
   box.textContent='';
   const q=normalize(search?.value||''),cargo=cargoFilter?.value||'',status=statusFilter?.value||'';
   const filtered=mediaMaps.filter(m=>{
+    if(!mapInTurn(m))return false;
     if(cargo&&m.cargo!==cargo)return false;
     const lifecycle=mapLifecycleStatus(m);
     if(status&&lifecycle.key!==status)return false;
@@ -1579,7 +1609,7 @@ function mapIdentityText(m){return mapOfficialNumber(m)||mapInternalIdentifier(m
 function mapIdentityMetaHtml(m){const official=mapOfficialNumber(m),internal=mapInternalIdentifier(m);if(official)return `<strong>${escapeHtml(official)}</strong>${internal?` <span class="map-mini-tag">ID interno ${escapeHtml(internal)}</span>`:''}`;return `<strong>Sem número oficial</strong>${internal?` <span class="map-mini-tag">ID interno ${escapeHtml(internal)}</span>`:''}`;}
 function fillMapForm(m){
   $('sequenceCount').dataset.context='';
-  if(!m){$('mapCargo').value='Presidente';refreshPartyOptions('BRASIL PRONTO PRA MAIS -');$('mapCandidateName').value='';$('mapNumber').value='';$('mapInternalIdentifier').value='';$('mapSourceFile').value='';$('mapTitle').value='';$('mapStart').value=brToIso(dateFilter.value||'28/08/2026');$('mapEnd').value=$('mapStart').value;$('mapActive').checked=true;$('mapNotes').value='';$('mapPdfUpload').value='';$('openMapPdf').disabled=true;$('openMapPdf').dataset.path='';$('sequenceDate').value=$('mapStart').value;renderSpotEditor([]);renderSequenceEditor();return;}
+  if(!m){$('mapCargo').value='Presidente';refreshPartyOptions();$('mapCandidateName').value='';$('mapNumber').value='';$('mapInternalIdentifier').value='';$('mapSourceFile').value='';$('mapTitle').value='';$('mapStart').value=brToIso(dateFilter.value)||(selectedTurn()==='2'?'2026-10-09':'2026-08-28');$('mapEnd').value=$('mapStart').value;$('mapActive').checked=true;$('mapNotes').value='';$('mapPdfUpload').value='';$('openMapPdf').disabled=true;$('openMapPdf').dataset.path='';$('sequenceDate').value=$('mapStart').value;renderSpotEditor([]);renderSequenceEditor();return;}
   $('mapCargo').value=m.cargo;refreshPartyOptions(m.program_party);$('mapCandidateName').value=m.candidate_name||'';$('mapNumber').value=m.map_number||'';$('mapInternalIdentifier').value=m.internal_identifier||'';$('mapSourceFile').value=m.source_file||'';$('mapTitle').value=m.title||'';$('mapStart').value=m.start_date||'';$('mapEnd').value=m.end_date||'';$('mapActive').checked=!!m.active;$('mapNotes').value=m.notes||'';$('mapPdfUpload').value='';$('openMapPdf').disabled=!m.source_storage_path;$('openMapPdf').dataset.path=m.source_storage_path||'';const cur=$('sequenceDate').value;if(!cur||cur<m.start_date||cur>m.end_date)$('sequenceDate').value=m.start_date;renderSpotEditor(mapSpots(m.id));renderSequenceEditor();
 }
 function renderSpotEditor(spots){ const box=$('spotEditor');box.textContent='';const list=spots.length?spots:[{code:'',title:'',duration_seconds:30,audio_filename:''}];for(const s of list)addSpotEditorRow(s); }
@@ -1606,7 +1636,7 @@ function renderSequenceEditor(){
 }
 function renderMapWorkspace(){
   renderMapList();const m=getSelectedMap();if(m){const formId=$('mapNumber').dataset.loadedMapId;if(String(formId)!==String(m.id)){fillMapForm(m);$('mapNumber').dataset.loadedMapId=String(m.id);}else renderSequenceEditor();}else{$('mapNumber').dataset.loadedMapId='';if(!$('mapParty').options.length)fillMapForm(null);}
-  const warnings=mediaMismatches.filter(w=>!selectedMapId||(w.mapIds||[]).includes(String(selectedMapId)));if(warnings.length){const text=warnings.slice(0,5).map(w=>`${w.date} • bloco ${w.block}: soma dos mapas ${w.registered} x oficial ${w.official}`).join(' | ');setMessage(mediaMessage,`⚠️ Divergências encontradas: ${text}${warnings.length>5?' …':''}`,'warn');}else if(mediaMaps.length)setMessage(mediaMessage,'','info');
+  const warnings=mediaMismatches.filter(w=>rowInTurn(w)&&(!selectedMapId||(w.mapIds||[]).includes(String(selectedMapId))));if(warnings.length){const text=warnings.slice(0,5).map(w=>`${w.date} • bloco ${w.block}: soma dos mapas ${w.registered} x oficial ${w.official}`).join(' | ');setMessage(mediaMessage,`⚠️ Divergências encontradas: ${text}${warnings.length>5?' …':''}`,'warn');}else if(mediaMaps.length)setMessage(mediaMessage,'','info');
 }
 function newMap(){ selectedMapId=null;$('mapNumber').dataset.loadedMapId='';fillMapForm(null);renderMapList();setMessage(mediaMessage,'Novo mapa: preencha os dados e clique em “Salvar mapa”.','info'); }
 async function saveMap(){
@@ -1653,11 +1683,19 @@ async function clearSequence(){
 }
 
 
-function localTodayBr(){const d=new Date();return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;}
+function localTodayBr(){return new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo'}).format(new Date());}
 function refreshDateOptions(){
-  const dates=[...new Set(DATA.map(r=>r.date))].sort((a,b)=>brToIso(a).localeCompare(brToIso(b)));
-  const targets=[dateFilter,reportDateFilter,auditDateFilter].filter(Boolean);
-  for(const select of targets){const old=select.value;select.innerHTML='<option value="">Todas as datas</option>';for(const d of dates){const o=document.createElement('option');o.value=d;o.textContent=d;select.appendChild(o);}if(old&&dates.includes(old))select.value=old;}
+  const dates=[...new Set(DATA.filter(rowInTurn).map(r=>r.date))].sort((a,b)=>brToIso(a).localeCompare(brToIso(b)));
+  if(selectedTurn()==='2'){
+    for(let day=9;day<=23;day++){const br=`${String(day).padStart(2,'0')}/10/2026`;if(!dates.includes(br))dates.push(br);}
+    dates.sort((a,b)=>brToIso(a).localeCompare(brToIso(b)));
+  }
+  const targets=[dateFilter,reportDateFilter,auditDateFilter].filter(Boolean),today=localTodayBr();
+  for(const select of targets){
+    const old=select.value;select.innerHTML='<option value="">Todas as datas do turno</option>';
+    for(const d of dates){const o=document.createElement('option');o.value=d;o.textContent=d;select.appendChild(o);}
+    select.value=old&&dates.includes(old)?old:old===''?'':dates.includes(today)?today:dates[0]||'';
+  }
 }
 async function loadOfficialProgramming(silent=false){
   if(!client)return false;const all=[];const pageSize=1000;let from=0;
@@ -1672,7 +1710,7 @@ function scheduleOfficialReload(){clearTimeout(officialReloadTimer);officialRelo
 function scheduleVersionsReload(){clearTimeout(versionsReloadTimer);versionsReloadTimer=setTimeout(()=>loadScheduleVersions(true),220);}
 
 function updateDailyDashboard(){
-  if(!$('dashTitle'))return;const br=dateFilter.value||localTodayBr(),source=(operationalRows.length?operationalRows:DATA).filter(r=>r.date===br),done=source.filter(isRowDone).length,pending=source.length-done,missing=source.filter(r=>mapStatusForRow(r)==='absent').length,radio=source.filter(r=>spotOriginForRow(r)==='radio').length,conflicts=source.filter(reportHasConflict).length,locked=isDayLockedBr(br);
+  if(!$('dashTitle'))return;const br=dateFilter.value||localTodayBr(),source=(operationalRows.length?operationalRows:DATA).filter(r=>rowInTurn(r)&&r.date===br),done=source.filter(isRowDone).length,pending=source.length-done,missing=source.filter(r=>mapStatusForRow(r)==='absent').length,radio=source.filter(r=>spotOriginForRow(r)==='radio').length,conflicts=source.filter(reportHasConflict).length,locked=isDayLockedBr(br);
   $('dashTitle').textContent=dateFilter.value?br:`Hoje • ${br}`;$('dashTotal').textContent=source.length.toLocaleString('pt-BR');$('dashDone').textContent=done.toLocaleString('pt-BR');$('dashPending').textContent=pending.toLocaleString('pt-BR');$('dashMapAbsent').textContent=missing.toLocaleString('pt-BR');$('dashRadio').textContent=radio.toLocaleString('pt-BR');$('dashConflicts').textContent=conflicts.toLocaleString('pt-BR');$('dashLock').textContent=locked?'🔒 Travada':'Aberta';$('dashProgress').style.width=(source.length?Math.round(done/source.length*100):0)+'%';$('dashDataSource').textContent=officialDataAvailable?'● dados oficiais: Supabase':'● dados oficiais: contingência local';
 }
 
@@ -2399,6 +2437,13 @@ loginForm.addEventListener('submit',async e=>{e.preventDefault();$('loginButton'
 $('logoutButton').addEventListener('click',async()=>{if(client)await client.auth.signOut();showLoggedOut();});
 function resetConfig(){if(!confirm('Trocar o projeto Supabase configurado neste navegador?'))return;if(client)client.auth.signOut();localStorage.removeItem(CONFIG_URL_KEY);localStorage.removeItem(CONFIG_API_KEY);client=null;showSetup();}
 $('resetConfigButton').addEventListener('click',resetConfig);$('changeConfig').addEventListener('click',resetConfig);
+$('turnFilter').addEventListener('change',()=>{
+  dateFilter.value='__turn_changed__';reportDateFilter.value='__turn_changed__';auditDateFilter.value='__turn_changed__';
+  refreshDateOptions();
+  cargoFilter.value='';reportCargoFilter.value='';$('mapListCargo').value='';
+  selectedMapId=null;aiMapAnalysis=null;aiMapFileRef=null;$('aiMapPreview').innerHTML='';$('confirmAiMap').disabled=true;
+  fillMapForm(null);refreshPartyOptions();renderMapWorkspace();applyFilters();renderReports();loadAuditData(true);loadScheduleVersions(true);
+});
 $('tabProgramacao').addEventListener('click',()=>showView('programacao'));$('tabMapas').addEventListener('click',()=>showView('mapas'));$('tabRelatorios').addEventListener('click',()=>showView('relatorios'));$('tabHistorico').addEventListener('click',()=>showView('historico'));
 dateFilter.addEventListener('change',()=>{applyFilters();loadScheduleVersions(true);});viewFilter.addEventListener('change',applyFilters);blockFilter.addEventListener('change',applyFilters);cargoFilter.addEventListener('change',applyFilters);statusFilter.addEventListener('change',applyFilters);mapStatusFilter.addEventListener('change',applyFilters);searchFilter.addEventListener('input',applyFilters);
 reportDateFilter.addEventListener('change',renderReports);reportViewFilter.addEventListener('change',renderReports);reportBlockFilter.addEventListener('change',renderReports);reportCargoFilter.addEventListener('change',renderReports);reportStatusFilter.addEventListener('change',renderReports);reportMapStatusFilter.addEventListener('change',renderReports);reportOriginFilter.addEventListener('change',renderReports);reportConflictFilter.addEventListener('change',renderReports);reportSearchFilter.addEventListener('input',renderReports);
@@ -2436,9 +2481,9 @@ document.addEventListener('visibilitychange',()=>{
 
 (function initStatic(){
 
-  const today=localTodayBr();dateFilter.value=[...dateFilter.options].some(o=>o.value===today)?today:'28/08/2026';viewFilter.value='schedule';
+  refreshDateOptions();const today=localTodayBr();dateFilter.value=[...dateFilter.options].some(o=>o.value===today)?today:'09/10/2026';viewFilter.value='schedule';
   reportDateFilter.value=dateFilter.value;reportViewFilter.value='schedule';auditDateFilter.value=dateFilter.value;
-  refreshPartyOptions('BRASIL PRONTO PRA MAIS -');$('mapStart').value=brToIso(dateFilter.value)||'2026-08-28';$('mapEnd').value=$('mapStart').value;$('sequenceDate').value=$('mapStart').value;renderSpotEditor([]);applyFilters();renderReports();renderAudit();updateDayLockUI();
+  refreshPartyOptions();$('mapStart').value=brToIso(dateFilter.value)||'2026-10-09';$('mapEnd').value=$('mapStart').value;$('sequenceDate').value=$('mapStart').value;renderSpotEditor([]);applyFilters();renderReports();renderAudit();updateDayLockUI();
 })();
 (async function boot(){const url=localStorage.getItem(CONFIG_URL_KEY)||'',key=localStorage.getItem(CONFIG_API_KEY)||'';$('supabaseUrl').value=url;$('supabaseKey').value=key;if(!url||!key){showSetup();return;}setLive('Conectando…','wait');try{await initClient(url,key);}catch(e){showSetup();setMessage(setupMessage,`Não foi possível usar a configuração salva: ${e.message}`,'error');}})();
 </script>
