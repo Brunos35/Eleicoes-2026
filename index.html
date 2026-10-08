@@ -708,6 +708,57 @@ function cargoTieRank(cargo,slotIndex){
   if(idx<0)return 100+CARGO_ORDER.length;
   return (idx-slotIndex+CARGO_ORDER.length)%CARGO_ORDER.length;
 }
+function usesRadioWeekdaySchedule(date){
+  const iso=brToIso(date);
+  if(iso<'2026-10-09'||iso>'2026-10-23')return false;
+  const weekday=new Date(iso+'T12:00:00Z').getUTCDay();
+  return weekday>=1&&weekday<=5;
+}
+function automaticScheduleSlots(date,block){
+  const cfg=getBlockConfig(block);
+  if(!usesRadioWeekdaySchedule(date)){
+    return Array.from({length:Math.round((cfg.end-cfg.start)/30)},(_,i)=>({minute:cfg.start+i*30,duration:30,limit:Infinity}));
+  }
+  const slots=[];
+  function add(minute,duration=15,limit=Infinity){slots.push({minute,duration,limit});}
+  function range(start,end,step){for(let m=start;m<end;m+=step)add(m,step);}
+  if(String(block)==='1'){
+    range(300,390,30); // 05:00, 05:30, 06:00.
+    range(480,540,15);
+    add(540,30,2);add(570,30,2);
+    range(615,660,15);
+  }else if(String(block)==='2'){
+    range(660,720,15);
+    range(780,840,30);
+    range(840,900,15);
+    range(960,1080,15);
+  }else if(String(block)==='3'){
+    add(1080,30,6);
+    range(1200,1260,15);
+    range(1260,1440,30); // Último horário automático: 23:30.
+  }
+  return slots;
+}
+function constrainedSlotCapacities(total,slots){
+  const capacities=balancedCapacities(total,slots.length);
+  let remaining=0;
+  for(let i=0;i<slots.length;i++){
+    if(capacities[i]>slots[i].limit){remaining+=capacities[i]-slots[i].limit;capacities[i]=slots[i].limit;}
+  }
+  while(remaining>0){
+    let target=-1;
+    for(let i=0;i<slots.length;i++){
+      if(capacities[i]>=slots[i].limit)continue;
+      if(target<0||capacities[i]<capacities[target])target=i;
+    }
+    if(target<0)throw new Error('A grade não tem capacidade para todas as inserções.');
+    capacities[target]++;remaining--;
+  }
+  return capacities;
+}
+function scheduleWindowDuration(date,block,minute){
+  return automaticScheduleSlots(date,block).find(s=>s.minute===minute)?.duration||(usesRadioWeekdaySchedule(date)?15:30);
+}
 function buildScheduleAssignments(){
   scheduleAssignments.clear();scheduleSlotTotals.clear();
   const source=operationalRows.length?operationalRows:DATA;
@@ -717,8 +768,8 @@ function buildScheduleAssignments(){
       const cfg=getBlockConfig(block);
       const rows=source.filter(r=>r.date===date&&String(r.block)===block);
       if(!rows.length)continue;
-      const slotCount=Math.max(1,Math.round((cfg.end-cfg.start)/30));
-      const capacities=balancedCapacities(rows.length,slotCount);
+      const slots=automaticScheduleSlots(date,block),slotCount=slots.length;
+      const capacities=constrainedSlotCapacities(rows.length,slots);
       const queues=new Map();
       for(const r of rows){if(!queues.has(r.cargo))queues.set(r.cargo,[]);queues.get(r.cargo).push(r);}
       for(const q of queues.values())q.sort((a,b)=>Number(a.seq||999)-Number(b.seq||999)||String(a.rowKey).localeCompare(String(b.rowKey)));
@@ -736,7 +787,7 @@ function buildScheduleAssignments(){
           });
           const chosen=pool[0],row=chosen.q.shift();picked.push(row);used.add(chosen.cargo);
         }
-        const start=cfg.start+slotIndex*30,end=start+30;
+        const start=slots[slotIndex].minute,end=start+slots[slotIndex].duration;
         const slotKey=`${date}|${block}|${start}`;
         for(let i=0;i<picked.length;i++){
           const rowKey=picked[i].rowKey;
@@ -750,7 +801,7 @@ function buildScheduleAssignments(){
     const a=scheduleAssignments.get(rowKey);if(!a||!dayLocks.has(brToIso(a.date)))continue;
     const cfg=getBlockConfig(a.block),m=Number(pos.scheduled_minutes);
     if(!Number.isInteger(m)||m<cfg.start||m>=cfg.end||m%15!==0)continue;
-    const slotIndex=Math.floor((m-cfg.start)/30),end=m+30;
+    const slotIndex=Math.floor((m-cfg.start)/(usesRadioWeekdaySchedule(a.date)?15:30)),end=m+scheduleWindowDuration(a.date,a.block,m);
     Object.assign(a,{slotIndex,slotKey:`${a.date}|${a.block}|${m}`,windowStart:m,windowEnd:Math.min(end,cfg.end),suggestedMinute:m,suggestedTime:minutesToTime(m),windowLabel:`${minutesToTime(m)}–${minutesToTime(Math.min(end,cfg.end))}`,locked:true});
   }
   // Ajustes manuais continuam tendo precedência sobre a trava do dia.
@@ -758,7 +809,7 @@ function buildScheduleAssignments(){
     const a=scheduleAssignments.get(rowKey);if(!a)continue;
     const cfg=getBlockConfig(a.block),m=Number(minute);
     if(!Number.isInteger(m)||m<cfg.start||m>=cfg.end||m%15!==0)continue;
-    const slotIndex=Math.floor((m-cfg.start)/30),end=m+30;
+    const slotIndex=Math.floor((m-cfg.start)/(usesRadioWeekdaySchedule(a.date)?15:30)),end=m+scheduleWindowDuration(a.date,a.block,m);
     Object.assign(a,{slotIndex,slotKey:`${a.date}|${a.block}|${m}`,windowStart:m,windowEnd:Math.min(end,cfg.end),suggestedMinute:m,suggestedTime:minutesToTime(m),windowLabel:`${minutesToTime(m)}–${minutesToTime(Math.min(end,cfg.end))}`,overridden:true});
   }
   scheduleSlotTotals.clear();
@@ -1059,8 +1110,8 @@ async function editScheduleWindow(r,a){
   if(!client||!currentUser||!scheduleSettingsAvailable){setMessage(appMessage,'Execute primeiro o SQL de horários compartilhados no Supabase.','warn');return;}
   const source=operationalRows.length?operationalRows:DATA;
   const rows=source.filter(row=>row.date===r.date&&String(row.block)===String(r.block)&&scheduleAssignments.get(rowDomKey(row))?.slotKey===a.slotKey);
-  if(!rows.length){setMessage(appMessage,'Não encontrei inserções nesta janela de 30 minutos.','warn');return;}
-  const cfg=getBlockConfig(r.block),current=a.windowStart;
+  if(!rows.length){setMessage(appMessage,'Não encontrei inserções neste horário.','warn');return;}
+  const cfg=getBlockConfig(r.block),current=a.windowStart,duration=a.windowEnd-a.windowStart;
   const entered=prompt(`Editar a janela ${a.windowLabel} de ${r.date}.
 Novo início da janela (HH:00, HH:15, HH:30 ou HH:45).
 Todas as ${rows.length} inserção(ões) desta janela serão movidas juntas.
@@ -1075,12 +1126,12 @@ Deixe em branco para restaurar o horário automático das inserções desta jane
   }
   const minute=parseHalfHourTime(value,false);
   if(minute===null){setMessage(appMessage,'Horário inválido. Use minutos 00, 15, 30 ou 45, por exemplo 07:00, 07:15, 07:30 ou 07:45.','error');return;}
-  if(minute<cfg.start||minute+30>cfg.end){setMessage(appMessage,`A janela de 30 minutos precisa permanecer dentro do Bloco ${r.block}, que é fixo em ${minutesToTime(cfg.start)}–${minutesToTime(cfg.end)}.`,'error');return;}
+  if(minute<cfg.start||minute>=cfg.end){setMessage(appMessage,`O horário precisa permanecer dentro do Bloco ${r.block}, que é fixo em ${minutesToTime(cfg.start)}–${minutesToTime(cfg.end)}.`,'error');return;}
   const now=new Date().toISOString(),who=currentWho();
   const payloads=rows.map(row=>({row_key:rowDomKey(row),program_date:brToIso(row.date),block:Number(row.block),scheduled_minutes:minute,updated_at:now,updated_by:who}));
   const res=await client.from(TIME_OVERRIDE_TABLE).upsert(payloads,{onConflict:'row_key'});
   if(res.error){setMessage(appMessage,`Não foi possível alterar a janela: ${res.error.message}`,'error');return;}
-  await auditEvent({eventType:'WINDOW_TIME_SET',row:r,summary:`Janela ${a.windowLabel} movida para ${minutesToTime(minute)}–${minutesToTime(minute+30)}`,details:{rows:rows.length,scheduled_minutes:minute}});await loadScheduleTimeSettings(true);setMessage(appMessage,`Janela movida para ${minutesToTime(minute)}–${minutesToTime(minute+30)} e sincronizada para os outros usuários.`,'ok');
+  await auditEvent({eventType:'WINDOW_TIME_SET',row:r,summary:`Janela ${a.windowLabel} movida para ${minutesToTime(minute)}–${minutesToTime(Math.min(minute+duration,cfg.end))}`,details:{rows:rows.length,scheduled_minutes:minute}});await loadScheduleTimeSettings(true);setMessage(appMessage,`Janela movida para ${minutesToTime(minute)}–${minutesToTime(Math.min(minute+duration,cfg.end))} e sincronizada para os outros usuários.`,'ok');
 }
 
 async function editInsertionTime(r,a){
@@ -1107,7 +1158,7 @@ function renderSchedule(){
     if(a.slotKey!==lastSlot){
       const sr=document.createElement('tr');sr.className='slot-header';const sc=document.createElement('td');sc.colSpan=11;
       const visibleInSlot=visibleSlotCounts.get(a.slotKey)||0,total=scheduleSlotTotals.get(a.slotKey)||a.windowCount;
-      const label=document.createElement('span');label.textContent=`${a.windowLabel} • Bloco oficial ${r.block} • ${visibleInSlot===total?`${total} spot(s)`:`${visibleInSlot} visível(is) de ${total} spot(s)`}`;sc.appendChild(label);const editBlock=document.createElement('button');editBlock.type='button';editBlock.className='block-edit-btn';editBlock.textContent='✎';editBlock.title=`Editar a janela ${a.windowLabel}`;editBlock.setAttribute('aria-label',`Editar a janela de 30 minutos ${a.windowLabel} de ${r.date}`);editBlock.disabled=!currentUser||!scheduleSettingsAvailable;editBlock.addEventListener('click',()=>editScheduleWindow(r,a));sc.appendChild(editBlock);sr.appendChild(sc);frag.appendChild(sr);lastSlot=a.slotKey;
+      const label=document.createElement('span');label.textContent=`${a.windowLabel} • Bloco oficial ${r.block} • ${visibleInSlot===total?`${total} spot(s)`:`${visibleInSlot} visível(is) de ${total} spot(s)`}`;sc.appendChild(label);const editBlock=document.createElement('button');editBlock.type='button';editBlock.className='block-edit-btn';editBlock.textContent='✎';editBlock.title=`Editar a janela ${a.windowLabel}`;editBlock.setAttribute('aria-label',`Editar o horário ${a.windowLabel} de ${r.date}`);editBlock.disabled=!currentUser||!scheduleSettingsAvailable;editBlock.addEventListener('click',()=>editScheduleWindow(r,a));sc.appendChild(editBlock);sr.appendChild(sc);frag.appendChild(sr);lastSlot=a.slotKey;
     }
     const tr=document.createElement('tr');markRowDataset(tr,r);const isDone=isRowDone(r);if(isDone)tr.classList.add('done');
     if(isOfficialRevisionRow(r))tr.classList.add('official-revision-row');tr.appendChild(makeCheckCell(r,isDone));tr.appendChild(makeScheduleTimeCell(r,a));tr.appendChild(td(a.windowLabel,'windowcell'));tr.appendChild(td(r.block,'num'));tr.appendChild(td(r.seq||'—','num'));tr.appendChild(partyCellForRow(r));tr.appendChild(td(candidateForRow(r),'candidate'));
@@ -1123,7 +1174,7 @@ function updateScheduleInfo(){
   const counts=new Map();for(const r of base){const a=scheduleAssignments.get(rowDomKey(r));if(a)counts.set(a.slotKey,(counts.get(a.slotKey)||0)+1);}
   const vals=[...counts.values()];if(!vals.length){scheduleInfo.textContent='Nenhuma inserção para o período selecionado.';return;}
   const min=Math.min(...vals),max=Math.max(...vals),days=new Set(base.map(r=>r.date)).size,extras=base.filter(r=>r.extraMedia).length;
-  const overrides=base.reduce((n,r)=>n+(scheduleAssignments.get(rowDomKey(r))?.overridden?1:0),0),locked=d&&isDayLockedBr(d);scheduleInfo.textContent=`${base.length.toLocaleString('pt-BR')} posição(ões) operacional(is) distribuída(s) em ${vals.length.toLocaleString('pt-BR')} janela(s) de 30 minutos${days>1?` em ${days} dias`:''}. Carga por janela: ${min===max?min:`${min} a ${max}`} spot(s).${extras?` ${extras} inserção(ões) veio/vieram do mapa de mídia sem linha oficial 1:1 e está(ão) destacada(s).`:''} As faixas oficiais 05:00–11:00, 11:00–18:00 e 18:00–24:00 são fixas. A distribuição automática permanece em :00 e :30; ajustes manuais podem usar também :15 e :45.${locked?' 🔒 A grade deste dia está travada: novos mapas não redistribuem os horários já capturados.':''} Use o lápis da janela para mover o grupo inteiro ou o lápis da inserção para ajustar apenas uma linha.${overrides?` ${overrides} inserção(ões) possui(em) ajuste manual de horário.`:''}`;
+  const overrides=base.reduce((n,r)=>n+(scheduleAssignments.get(rowDomKey(r))?.overridden?1:0),0),locked=d&&isDayLockedBr(d);scheduleInfo.textContent=`${base.length.toLocaleString('pt-BR')} posição(ões) operacional(is) distribuída(s) em ${vals.length.toLocaleString('pt-BR')} horário(s)${days>1?` em ${days} dias`:''}. Carga por janela: ${min===max?min:`${min} a ${max}`} spot(s).${extras?` ${extras} inserção(ões) veio/vieram do mapa de mídia sem linha oficial 1:1 e está(ão) destacada(s).`:''} As faixas oficiais 05:00–11:00, 11:00–18:00 e 18:00–24:00 são fixas. No segundo turno, de segunda a sexta, a distribuição automática segue os horários da rádio, com até 2 inserções às 09:00 e 09:30 e até 6 às 18:00. Sábados, domingos e primeiro turno continuam a cada 30 minutos. Ajustes manuais podem usar :00, :15, :30 e :45, inclusive 23:45; horários ajustados e grades travadas são preservados.${locked?' 🔒 A grade deste dia está travada: novos mapas não redistribuem os horários já capturados.':''} Use o lápis da janela para mover o grupo inteiro ou o lápis da inserção para ajustar apenas uma linha.${overrides?` ${overrides} inserção(ões) possui(em) ajuste manual de horário.`:''}`;
 }
 function render(){
   const scheduleMode=viewFilter.value==='schedule';schedulePanel.classList.toggle('hidden',!scheduleMode);scheduleSummaryPanel.classList.toggle('hidden',!scheduleMode);tablePanel.classList.toggle('hidden',scheduleMode);
