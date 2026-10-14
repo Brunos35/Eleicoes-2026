@@ -1888,6 +1888,39 @@ function aiReadPdfMonthlyCalendarItems(items,map,spotCodes,pageNo){
   const diagnostics=[...counters.entries()].map(([k,count])=>{const [date,b]=k.split('|');return{page:pageNo,date,block:Number(b),count,method:'monthly-calendar'};});
   return {sequences,diagnostics,total:sequences.length,method:'pdf-calendar-coordinates'};
 }
+function aiReadPdfStackedBlocks(items,map,spotCodes,pageNo){
+  const labels=items.map(it=>({...it,match:it.text.match(/^BLOCO\s*([123])$/i)})).filter(it=>it.match).map(it=>({...it,block:Number(it.match[1])})).sort((a,b)=>b.y-a.y);
+  if(labels.length!==3||labels.some((it,i)=>it.block!==i+1))return null;
+  const dates=items.map(it=>{const m=it.text.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?$/);if(!m)return null;const year=m[3]||String(map.start_date||'').slice(0,4);const date=year+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');return {date,x:it.x,y:it.y};}).filter(Boolean);
+  const headers=[];
+  for(let bi=0;bi<3;bi++){
+    const label=labels[bi],bottom=labels[bi+1]?.y??-Infinity;
+    const clusters=aiPdfClusterByY(items.filter(it=>it.y<label.y&&it.y>bottom&&/^[1-9]\d?$/.test(it.text)),2.4);
+    const candidates=clusters.map(c=>({...c,items:c.items.slice().sort((a,b)=>a.x-b.x)})).filter(c=>c.items.length>=2&&c.items.every((it,i)=>Number(it.text)===i+1));
+    if(candidates.length!==1)return null;headers.push(candidates[0]);
+  }
+  if(!headers.every(h=>h.items.length===headers[0].items.length))return null;
+  const possibleDates=dates.filter(d=>d.x<headers[0].items[0].x&&d.y<labels[0].y&&d.y>headers[2].y);
+  if(possibleDates.length!==1)return null;const date=possibleDates[0].date;
+  if(date<map.start_date||date>map.end_date)return null;
+  const sequences=[],counts=[],slots=[];
+  for(let bi=0;bi<3;bi++){
+    const header=headers[bi],centers=header.items.map(it=>it.x+it.w/2),bottom=labels[bi+1]?.y??-Infinity;
+    const rows=aiPdfClusterByY(items.filter(it=>it.y<header.y-2.4&&it.y>bottom&&spotCodes.has(it.text.toUpperCase())),2.4).sort((a,b)=>b.y-a.y);
+    if(rows.length!==1)return null;const assigned=[];
+    for(const it of rows[0].items){
+      const cx=it.x+it.w/2;let best=-1,dist=Infinity;
+      centers.forEach((c,i)=>{if(Math.abs(c-cx)<dist){best=i;dist=Math.abs(c-cx);}});
+      const gap=Math.min(best>0?centers[best]-centers[best-1]:Infinity,best<centers.length-1?centers[best+1]-centers[best]:Infinity);
+      if(best<0||dist>gap*0.48||assigned.some(a=>a.slot===best))return null;
+      assigned.push({slot:best,code:it.text.toUpperCase()});
+    }
+    assigned.sort((a,b)=>a.slot-b.slot);counts.push(assigned.length);slots.push(assigned.map(a=>a.slot+1));
+    assigned.forEach((a,i)=>sequences.push({date,block:bi+1,occurrence_order:i+1,spot_code:a.code,_pdf_slot:a.slot+1}));
+  }
+  return {sequences,diagnostics:[{page:pageNo,date,counts,slots,positionsPerBlock:headers[0].items.length,method:'stacked-numbered-blocks'}],method:'pdf-stacked-coordinates'};
+}
+
 async function aiReadPdfGridPositions(file,map){
   if(!file||aiFileMimeType(file)!=='application/pdf'||!window.pdfjsLib)return null;
   const spotCodes=new Set((map?.spots||[]).map(s=>String(s.code||'').trim().toUpperCase()).filter(Boolean));if(!spotCodes.size)return null;
@@ -1920,6 +1953,7 @@ async function aiReadPdfGridPositions(file,map){
           if(pageSequences.length)usedMethod='pdf-text-coordinates';
         }
       }
+      if(!pageSequences.length){const stacked=aiReadPdfStackedBlocks(items,map,spotCodes,pageNo);if(stacked){pageSequences=stacked.sequences;diagnostics.push(...stacked.diagnostics);usedMethod=stacked.method;}}
       // Segundo formato: calendário mensal em colunas 1–30/31 e uma linha por ocorrência.
       if(!pageSequences.length){
         const monthly=aiReadPdfMonthlyCalendarItems(items,map,spotCodes,pageNo);
